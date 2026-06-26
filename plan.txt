@@ -1,0 +1,196 @@
+# FitTrack MCP Server — Complete Build Plan
+
+This document describes how to build and deploy an MCP (Model Context Protocol) server that lets Claude — or any other AI assistant that supports MCP — read and work with a user's FitTrack data. It is written so that another person or AI model can follow it from start to finish without prior context. It contains no code. Each phase explains what to achieve, what to do, what to avoid, and how to know the phase is finished.
+
+---
+
+## Background: what already exists
+
+The FitTrack web app already has everything needed on its side. The MCP server being built here is a *separate* program that talks to the same data. Specifically, the app already provides:
+
+- **A user login system.** Users sign in with Google, and that login is tied to their account in Supabase (the database service that stores all FitTrack data).
+- **A token feature.** Inside the app, each user can generate a personal access token from their settings page. This token is a long random secret that an external program can present to prove it is acting on that user's behalf. Key facts about how this token already works:
+  - The database never stores the real token. It stores only a one-way fingerprint (a hash) of it. The real token is shown to the user exactly once, at the moment it is generated, and never again.
+  - Each token expires three hours after it is created.
+  - Each user can have only one token at a time. Generating a new one replaces the old one.
+  - The user can revoke (delete) their token at any time.
+
+The job of this plan is to build the **other half**: the MCP server that *receives* one of these tokens, checks it, figures out which user it belongs to, and then answers questions about that user's fitness data.
+
+---
+
+## The overall shape
+
+In plain terms, three things talk to each other:
+
+```
+  The AI assistant (Claude)
+        │  sends each request with the user's token attached
+        ▼
+  The MCP server   ←  this is what we are building
+        │  looks up the data the request needs
+        ▼
+  Supabase (the FitTrack database)
+```
+
+The FitTrack web interface (built on Lovable) is *not* part of this chain. It is simply another, separate program that also reads the same database. The MCP server never talks to it. The only connection the MCP server cares about is its own link to the database.
+
+---
+
+## Guiding principles (these shape every phase)
+
+1. **Change only one thing at a time.** Each phase adds exactly one new piece. If something stops working, the cause is always the single thing that just changed, which makes problems easy to find. Never combine "make the server run," "put it online," "check the token," and "connect the database" into one step.
+
+2. **The token is the identity.** The user pastes only their token into the AI assistant — nothing else, no username, no email. The token alone tells the server who the user is, because the server can look the token up and find the matching user. The assistant is never trusted to *say* who the user is; the server only trusts what the token *resolves to*. This prevents anyone from presenting one user's token while claiming to be someone else.
+
+3. **Every request is checked, not just the first one.** The connection between the AI assistant and the server does not remember anything between requests — each request stands alone and arrives with the token attached again. So the server checks the token on *every single request*. This is what makes the three-hour expiry and the revoke button actually work: the moment a token expires or is revoked, the very next request fails automatically. The user never notices the repeated checking; the assistant attaches the token each time on its own.
+
+4. **One place handles the token check.** All the server's abilities route through a single checkpoint that validates the token. The check is never copied separately into each ability. This matters later, because that same single checkpoint is where the server makes sure a user can only ever see their own data.
+
+---
+
+## Phase 0 — Get a bare server running, with token-checking built in
+
+**Goal:** a minimal server that runs on the builder's own computer, accepts requests, checks a token, and answers. No database yet. No real user data yet. No internet yet.
+
+**What to do:**
+
+- Create a list of the software components the server needs to run, and install them. This is the foundation and nothing more.
+- Build the smallest possible working server that can receive requests from an AI assistant and respond to them.
+- Give it one or two simple abilities that return fixed, made-up answers — for example, an ability called "get recent workouts" that always replies with the same placeholder sentence. These fake answers exist only to prove the request-and-response path works.
+- Build the **token checkpoint** in front of those abilities. For now, because there is no database, use a single known token whose fingerprint is written directly into the server. The checkpoint works like this:
+  - Take the token attached to the incoming request.
+  - Produce its one-way fingerprint.
+  - Compare that fingerprint to the known one stored in the server.
+  - If they match, allow the request through to the ability.
+  - If they do not match, or no token was provided, reject the request with an "authentication failed" response and do nothing else.
+- Also include an "is it expired?" step in the checkpoint, even though for now it always passes. This keeps the checkpoint shaped exactly like the real one, so later only its *source of truth* needs swapping, not its structure.
+
+**What NOT to do in this phase:** no database, no internet deployment, no encryption, no real user tokens, no Google login. Only the local server, fake answers, and the token checkpoint against one hardcoded fingerprint.
+
+**How to know it's done:** running the server on the builder's computer produces a program that accepts requests. A request carrying the correct known token gets the placeholder answer. A request with a wrong token, or no token, is cleanly rejected as "authentication failed." The full path — request arrives, token checked, answer or rejection returned — works locally.
+
+---
+
+## Phase 1 — Put it online with fake answers
+
+**Goal:** the same server, now reachable over the internet at a public web address, still returning fake answers. This proves the hosting works before any real data is involved.
+
+**What to do:**
+
+- Place the server on a hosting service (Vercel is the chosen one). Hosting means the server is no longer running only on the builder's computer; it now answers at a public web address that the AI assistant can reach from anywhere.
+- Keep the abilities returning the same fixed placeholder answers. Nothing about the data changes here — only *where the server lives* changes.
+- Keep the token checkpoint exactly as it was, still using the single hardcoded fingerprint. The known token must still be required, and wrong tokens still rejected, even online.
+
+**Why online before real data:** if putting a server online has any problem — wrong address, misconfiguration, the hosting service not serving it correctly — this phase reveals it while the only moving part is a fixed sentence. Once the public server reliably returns placeholders behind the token check, hosting is proven, and any later trouble can only be about the data.
+
+**How to know it's done:** an AI assistant pointed at the public web address, using the known token, receives the placeholder answers. Without the token, it is rejected. The server is now a working, reachable, token-protected service that simply hasn't been connected to real data yet.
+
+---
+
+## Phase 2 — Test the online server thoroughly
+
+**Goal:** confirm that real tools and real AI assistants can connect to the public server, are properly stopped when the token is wrong, and properly served when it is right.
+
+**What to do:**
+
+- Use a dedicated testing tool (the MCP Inspector, a simple utility for poking at MCP servers directly) to connect to the public address. Confirm the abilities appear, that the correct token lets them run, and that a wrong or missing token is refused.
+- Then connect a real AI assistant (Claude, or another that supports MCP) to the same address with the known token. Confirm the assistant can see the abilities, choose the right one when asked a plain-language question, and relay the placeholder answer back. Confirm again that removing the token causes a clean refusal.
+- Write down exactly what correct behaviour looks like at this stage — which answers appear, how refusals look — so that when real data replaces the placeholders later, any difference is obviously a data issue and not a connection issue.
+
+**Why both a tool and a real assistant:** the testing tool proves the underlying mechanics are correct; a real assistant proves the actual end-user experience works, including small differences in how real assistants behave. They can fail in different ways, so both should pass before moving on.
+
+**How to know it's done:** both the testing tool and a real AI assistant connect to the public server, are correctly refused without a valid token, and correctly receive placeholder answers with one.
+
+---
+
+## Phase 3 — Connect the real database and real tokens
+
+**Goal:** replace the fake answers with real FitTrack data, and replace the single hardcoded token with real per-user tokens looked up in the database. This is the phase where the server becomes genuinely useful. Because hosting, connection, and the token checkpoint are all already proven, anything that breaks here is clearly about the database link.
+
+**What to do, in two clearly separate sub-steps:**
+
+*Sub-step A — swap the token source.*
+- Connect the server to the database, using a database access key kept as a private setting on the hosting service (never written into the server's files, never shared).
+- Change the token checkpoint's source of truth: instead of comparing the incoming token's fingerprint to one hardcoded value, the server now looks that fingerprint up in the app's token table. The lookup asks the database: "Is there a token with this exact fingerprint that has not yet expired?"
+  - If yes, the matching record tells the server which user this token belongs to. The server now knows the user's identity — derived entirely from the token, never from anything the assistant claimed.
+  - If no such record exists (wrong token, expired token, or revoked token), the request is refused as "authentication failed." Notice that expired, revoked, and never-existed all naturally produce the same simple refusal, which keeps the behaviour clean.
+- The *structure* of the checkpoint does not change — only where it looks. Everything tested in earlier phases still holds.
+
+*Sub-step B — swap the answers.*
+- Change each ability from returning a fixed placeholder to returning real information drawn from the database for the identified user.
+- Crucially, **every** data lookup must be limited to the user that the token resolved to. The single checkpoint that identified the user is also where this limit is enforced, so that no ability can ever accidentally return another user's data. Because the token is a FitTrack-specific token (not a database login itself), the server uses a privileged database key and must itself apply this "only this user's rows" limit on every lookup. This is the single most important safety rule in the whole server, and it lives in one shared place so it cannot be forgotten in an individual ability.
+- Build out the full set of abilities the assistant should offer — for example: recent workouts, weight trend over time, today's nutrition, recovery information, and logging a new workout. Give each a clear, plain description, because the assistant reads those descriptions to decide which ability to use for a given question.
+- Add each ability one at a time and re-test after each, keeping the one-change-at-a-time discipline even within this phase.
+
+**How to know it's done:** a real user generates a token in the FitTrack app, pastes it into their AI assistant, and the assistant returns that user's actual fitness data. A different user's token returns *their* data and never the first user's. An expired or revoked token is refused.
+
+---
+
+## Phase 4 — Final safety review before real use
+
+**Goal:** confirm the protective behaviours all work together correctly now that real data is flowing. Most of these were built earlier; this phase is a deliberate check that nothing slipped.
+
+**What to confirm:**
+
+- **The token is checked on every request, freshly each time.** Verify that a token which was valid a moment ago stops working the instant it passes its three-hour expiry or is revoked in the app — the next request should simply fail. This proves expiry and revoke are real, not cached.
+- **Identity comes only from the token.** Verify the server ignores anything the assistant might claim about who the user is, and relies solely on what the token resolves to.
+- **Each user sees only their own data.** Re-verify the "only this user's rows" limit holds across every ability, including any added last.
+- **Requests are protected against address-spoofing tricks.** Confirm the server checks where requests are coming from, a standard protection the MCP guidelines call for.
+- **Repeated rapid requests are limited** so that a misbehaving or runaway assistant cannot hammer the server in a tight loop.
+
+**How to know it's done:** valid tokens work, invalid and expired and revoked tokens are refused, and no user can reach another user's data under any ability.
+
+---
+
+## Phase 5 — Connect it to Claude for everyday use
+
+**Goal:** put the finished server into normal daily use.
+
+**What to do:**
+
+- In the AI assistant, add the server by its public web address and supply a token generated from the FitTrack app.
+- Ask it real questions in plain language — "what were my last five workouts?", "how has my weight changed this month?" — and confirm it picks the right ability and returns correct, real data.
+- If the assistant ever chooses the wrong ability or misreads a request, improve the plain-language description of that ability. Clearer descriptions are almost always the fix.
+- Remember the practical rhythm the token design creates: because tokens last three hours and there is one per user, the user generates a token, uses the assistant for a few hours, and generates a fresh one when it lapses. This is intentional, supervised access.
+
+**How to know it's done:** the user can ask the assistant about their fitness data in everyday language and get correct answers drawn live from FitTrack, with access cleanly ending when the token expires.
+
+---
+
+## The whole journey at a glance
+
+| Phase | What it adds | Where it runs | The one new thing being proven |
+|------|--------------|---------------|-------------------------------|
+| 0 | Bare server + token checkpoint (hardcoded token) | Builder's computer | The server runs and the token check works |
+| 1 | Put it online | Hosting service | Hosting works |
+| 2 | Test it online | Tool + real assistant | Connections and refusals work |
+| 3 | Real database + real per-user tokens + real data | Hosting service | The data link and per-user access work |
+| 4 | Final safety review | Hosting service | All protections hold together |
+| 5 | Daily use with Claude | AI assistant | The whole thing works in practice |
+
+Each row adds exactly one new thing that could go wrong. That is the entire method.
+
+---
+
+## How the token check works, explained simply
+
+This is the heart of the server, so here it is in plain words, free of phases:
+
+1. The user generates a token in the FitTrack app and pastes it into their AI assistant.
+2. From then on, the assistant attaches that token to every request it sends to the server. The user does nothing further; this is automatic.
+3. For each request, the server takes the token, produces its one-way fingerprint, and looks that fingerprint up in the app's token records, asking for a match that has not expired.
+4. If a valid match is found, the record reveals which user it is. The server then answers the request using only that user's data.
+5. If no valid match is found — because the token is wrong, expired, or was revoked — the server simply refuses the request as "authentication failed."
+
+Three things make this safe and simple: the real token is never stored anywhere (only its fingerprint), so a database leak exposes nothing usable; the identity always comes from the token and never from anything the assistant claims; and the check happens on every request, so expiry and revocation take effect immediately.
+
+---
+
+## Notes on the choices made
+
+- **Programming approach:** the server is built in Python using the standard MCP toolkit, because it matches the builder's existing tools. An alternative hosting service (Cloudflare) was considered but rejected, because it cannot run Python without a rewrite in a different language.
+- **Hosting:** Vercel is chosen for least friction. If its setup proves awkward for this kind of always-listening server, alternatives that run the program continuously (such as Railway or Render) are acceptable fallbacks.
+- **Database:** Supabase, unchanged. The MCP server is simply a new, separate reader of the same data the web app already uses.
+- **One token per user, three-hour life, no auto-renewal:** this is deliberate. The integration is meant for supervised sessions, not unattended long-running access. When the token lapses, the user returns to the app and generates another. This was a considered trade of mild convenience for a much smaller window of risk if a token ever leaks.
+- **Custom web address (optional, later):** the server can be given a friendly address under the owner's own domain once everything works. This is a finishing touch, not a requirement.
