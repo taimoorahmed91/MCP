@@ -91,11 +91,17 @@ The Phase 0 MCP tools are:
 - `recent_workouts`
 - `today_nutrition`
 
-Both tools require the `token` argument. Wrong or missing tokens return:
+The token is not a tool argument. Every MCP request must include this HTTP
+header:
+
+```text
+Authorization: Bearer <token>
+```
+
+Wrong or missing authorization headers return:
 
 ```json
 {
-  "ok": false,
   "error": "authentication failed"
 }
 ```
@@ -116,8 +122,8 @@ After deployment, the MCP endpoint should be:
 https://<your-vercel-project>.vercel.app/mcp
 ```
 
-Use the local Phase 0 development token while testing Phase 1. Keep that token
-outside Git.
+Use the local Phase 0 development token as an `Authorization: Bearer ...`
+header while testing Phase 1. Keep that token outside Git.
 
 The deployment entrypoint is [app.py](app.py), which exposes the MCP server as
 an ASGI app for Vercel.

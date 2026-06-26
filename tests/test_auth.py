@@ -2,6 +2,7 @@ import hashlib
 
 from fittrack_mcp.auth import (
     AuthenticationError,
+    authenticate_authorization_header,
     authenticate_token,
     fingerprint_token,
 )
@@ -23,6 +24,26 @@ def test_authenticate_known_token(monkeypatch):
     user = authenticate_token(TEST_TOKEN)
 
     assert user.user_id == "phase0-demo-user"
+
+
+def test_authenticate_authorization_header_strips_bearer_prefix(monkeypatch):
+    monkeypatch.setattr(
+        "fittrack_mcp.auth.KNOWN_TOKEN_FINGERPRINT",
+        fingerprint_token(TEST_TOKEN),
+    )
+
+    user = authenticate_authorization_header(f"Bearer {TEST_TOKEN}")
+
+    assert user.user_id == "phase0-demo-user"
+
+
+def test_authenticate_authorization_header_requires_bearer_prefix():
+    try:
+        authenticate_authorization_header(TEST_TOKEN)
+    except AuthenticationError as exc:
+        assert str(exc) == "authentication failed"
+    else:
+        raise AssertionError("Expected AuthenticationError")
 
 
 def test_authenticate_rejects_missing_token():

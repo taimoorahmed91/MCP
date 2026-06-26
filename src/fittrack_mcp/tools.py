@@ -1,34 +1,11 @@
-"""Fake Phase 0 FitTrack tools behind the shared authentication checkpoint."""
+"""Fake Phase 0 FitTrack tools."""
 
 from __future__ import annotations
 
-from typing import Any, Callable, TypeVar
-
-from .auth import AuthenticationError, authenticate_token
+from typing import Any
 
 
-F = TypeVar("F", bound=Callable[..., dict[str, Any]])
-
-
-def authenticated_tool(handler: F) -> Callable[..., dict[str, Any]]:
-    """Wrap a tool so token validation happens in one shared place."""
-
-    def wrapped(*, token: str | None = None, **kwargs: Any) -> dict[str, Any]:
-        try:
-            user = authenticate_token(token)
-        except AuthenticationError as exc:
-            return {
-                "ok": False,
-                "error": str(exc),
-            }
-
-        return handler(user_id=user.user_id, **kwargs)
-
-    return wrapped
-
-
-@authenticated_tool
-def get_recent_workouts(*, user_id: str, limit: int = 5) -> dict[str, Any]:
+def get_recent_workouts(*, user_id: str = "phase0-demo-user", limit: int = 5) -> dict[str, Any]:
     """Return fixed workout data to prove the request path works."""
 
     workouts = [
@@ -57,8 +34,7 @@ def get_recent_workouts(*, user_id: str, limit: int = 5) -> dict[str, Any]:
     }
 
 
-@authenticated_tool
-def get_today_nutrition(*, user_id: str) -> dict[str, Any]:
+def get_today_nutrition(*, user_id: str = "phase0-demo-user") -> dict[str, Any]:
     """Return fixed nutrition data to prove a second tool uses the checkpoint."""
 
     return {

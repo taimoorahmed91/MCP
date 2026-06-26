@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from .http_auth import AuthorizationHeaderMiddleware
 from .tools import get_recent_workouts, get_today_nutrition
 
 
@@ -36,22 +37,22 @@ def build_server(*, deployed: bool = False):
     )
 
     @mcp.tool()
-    def recent_workouts(token: str, limit: int = 5) -> dict:
+    def recent_workouts(limit: int = 5) -> dict:
         """Get recent FitTrack workouts for the token's user.
 
         Phase 0 returns fake data.
         """
 
-        return get_recent_workouts(token=token, limit=limit)
+        return get_recent_workouts(limit=limit)
 
     @mcp.tool()
-    def today_nutrition(token: str) -> dict:
+    def today_nutrition() -> dict:
         """Get today's FitTrack nutrition summary for the token's user.
 
         Phase 0 returns fake data.
         """
 
-        return get_today_nutrition(token=token)
+        return get_today_nutrition()
 
     return mcp
 
@@ -59,13 +60,24 @@ def build_server(*, deployed: bool = False):
 def build_asgi_app():
     """Build the ASGI app used by HTTPS hosting providers."""
 
-    return build_server(deployed=True).streamable_http_app()
+    return AuthorizationHeaderMiddleware(build_server(deployed=True).streamable_http_app())
+
+
+def build_local_asgi_app():
+    """Build the local ASGI app with the same header authentication."""
+
+    return AuthorizationHeaderMiddleware(build_server().streamable_http_app())
 
 
 def main() -> None:
     """Run the local MCP server over Streamable HTTP."""
 
-    build_server().run(transport="streamable-http")
+    try:
+        import uvicorn
+    except ModuleNotFoundError as exc:
+        raise RuntimeError("The 'uvicorn' package is required to run the HTTP server.") from exc
+
+    uvicorn.run(build_local_asgi_app(), host=DEFAULT_HOST, port=DEFAULT_PORT)
 
 
 def main_stdio() -> None:

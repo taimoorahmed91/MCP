@@ -59,3 +59,14 @@ def authenticate_token(token: str | None) -> AuthenticatedUser:
         raise AuthenticationError("authentication failed")
 
     return AuthenticatedUser(user_id="phase0-demo-user")
+
+
+def authenticate_authorization_header(header_value: str | None) -> AuthenticatedUser:
+    """Validate an HTTP Authorization header carrying a Bearer token."""
+
+    prefix = "Bearer "
+    if not header_value or not header_value.startswith(prefix):
+        raise AuthenticationError("authentication failed")
+
+    token = header_value[len(prefix) :].strip()
+    return authenticate_token(token)
