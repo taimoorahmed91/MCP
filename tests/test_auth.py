@@ -1,3 +1,5 @@
+import hashlib
+
 from fittrack_mcp.auth import (
     AuthenticationError,
     authenticate_token,
@@ -5,15 +7,20 @@ from fittrack_mcp.auth import (
 )
 
 
+TEST_TOKEN = "unit-test-token"
+
+
 def test_fingerprint_token_is_sha256_hex():
-    assert (
-        fingerprint_token("fittrack_phase0_dev_token")
-        == "8d7290a9091a2b494e899f7e3ae5281a75eb243b05dcb619917049ad82fe2345"
+    assert fingerprint_token(TEST_TOKEN) == hashlib.sha256(TEST_TOKEN.encode("utf-8")).hexdigest()
+
+
+def test_authenticate_known_token(monkeypatch):
+    monkeypatch.setattr(
+        "fittrack_mcp.auth.KNOWN_TOKEN_FINGERPRINT",
+        fingerprint_token(TEST_TOKEN),
     )
 
-
-def test_authenticate_known_token():
-    user = authenticate_token("fittrack_phase0_dev_token")
+    user = authenticate_token(TEST_TOKEN)
 
     assert user.user_id == "phase0-demo-user"
 

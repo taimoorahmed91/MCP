@@ -50,20 +50,6 @@ Phase 0 creates the smallest useful server:
 Phase 0 should not include Supabase, hosting, real user data, Google login, or
 production secrets.
 
-## Phase 0 Development Token
-
-Use this local-only token when testing Phase 0:
-
-```text
-fittrack_phase0_dev_token
-```
-
-The code stores only this token's SHA-256 fingerprint:
-
-```text
-8d7290a9091a2b494e899f7e3ae5281a75eb243b05dcb619917049ad82fe2345
-```
-
 ## Running Locally
 
 Install dependencies:
@@ -130,11 +116,8 @@ After deployment, the MCP endpoint should be:
 https://<your-vercel-project>.vercel.app/mcp
 ```
 
-Use the same Phase 0 development token while testing Phase 1:
-
-```text
-fittrack_phase0_dev_token
-```
+Use the local Phase 0 development token while testing Phase 1. Keep that token
+outside Git.
 
 The deployment entrypoint is [app.py](app.py), which exposes the MCP server as
 an ASGI app for Vercel.

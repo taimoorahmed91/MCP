@@ -39,7 +39,7 @@ def build_server(*, deployed: bool = False):
     def recent_workouts(token: str, limit: int = 5) -> dict:
         """Get recent FitTrack workouts for the token's user.
 
-        Phase 0 returns fake data. Use token 'fittrack_phase0_dev_token'.
+        Phase 0 returns fake data.
         """
 
         return get_recent_workouts(token=token, limit=limit)
@@ -48,7 +48,7 @@ def build_server(*, deployed: bool = False):
     def today_nutrition(token: str) -> dict:
         """Get today's FitTrack nutrition summary for the token's user.
 
-        Phase 0 returns fake data. Use token 'fittrack_phase0_dev_token'.
+        Phase 0 returns fake data.
         """
 
         return get_today_nutrition(token=token)
