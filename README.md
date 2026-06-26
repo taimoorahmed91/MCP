@@ -22,16 +22,22 @@ and this server read from the same Supabase database.
 
 ## Current Status
 
-Phase 0 is implemented as a local Python MCP server over Streamable HTTP, with
-fake data and hardcoded token validation.
+Phases 0 through 2 are complete for the fake-data MCP server.
+
+The server runs over Streamable HTTP, validates a Bearer token from the
+`Authorization` header, exposes two placeholder tools, and has been successfully
+called from Claude through the public MCP connector.
+
+The next major step is Phase 3: replace the hardcoded token fingerprint and fake
+responses with Supabase-backed token lookup and real FitTrack data.
 
 ## Planned Phases
 
 | Phase | Goal | Status |
 | --- | --- | --- |
-| 0 | Local Streamable HTTP MCP server with fake responses and token checking | Implemented |
-| 1 | Public deployment with fake responses | Ready to deploy |
-| 2 | Online testing with MCP Inspector and a real assistant | Not started |
+| 0 | Local Streamable HTTP MCP server with fake responses and token checking | Complete |
+| 1 | Public HTTPS deployment with fake responses | Complete |
+| 2 | Online testing with Claude using the public MCP connector | Complete |
 | 3 | Supabase-backed token lookup and real FitTrack data | Not started |
 | 4 | Safety review for expiry, revocation, isolation, and rate limits | Not started |
 | 5 | Everyday Claude usage | Not started |
@@ -106,7 +112,7 @@ Wrong or missing authorization headers return:
 }
 ```
 
-## Deploying Phase 1
+## Phase 1 Deployment
 
 Phase 1 deploys the same fake-data MCP server to a public HTTPS URL.
 
@@ -127,6 +133,37 @@ header while testing Phase 1. Keep that token outside Git.
 
 The deployment entrypoint is [app.py](app.py), which exposes the MCP server as
 an ASGI app for Vercel.
+
+## Phase 2 Claude Test
+
+Claude has successfully connected to the public MCP server and used the
+`recent_workouts` tool from a plain-language request:
+
+```text
+get my recent workout
+```
+
+The response returned the expected Phase 0 placeholder workouts:
+
+- 2026-06-24 strength workout;
+- 2026-06-22 easy run;
+- 2026-06-20 mobility session.
+
+This confirms the connector can load the server, discover the tools, choose a
+tool, send the Bearer token, and receive a tool response. The data is still
+demo data until Phase 3 connects Supabase.
+
+## Phase 3 Next Step
+
+Phase 3 should replace the local hardcoded token fingerprint with a Supabase
+lookup:
+
+- read `Authorization: Bearer <token>` from each request;
+- hash the token with SHA-256;
+- look up the fingerprint in the FitTrack token table;
+- reject missing, wrong, expired, or revoked tokens;
+- use the resolved user ID to scope every FitTrack data query;
+- replace placeholder tool responses with real Supabase data.
 
 ## Security Principles
 
