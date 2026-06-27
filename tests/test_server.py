@@ -187,8 +187,15 @@ def test_asgi_app_rejects_tool_call_without_authorization_header():
                 },
             )
 
-        assert response.status_code == 401
-        assert response.json() == {"error": "authentication failed"}
+        assert response.status_code == 200
+        assert response.json() == {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "error": {
+                "code": -32001,
+                "message": "authentication failed",
+            },
+        }
 
     anyio.run(request_without_header)
 
@@ -208,8 +215,8 @@ def test_asgi_app_rejects_tool_call_with_wrong_authorization_header():
                 },
             )
 
-        assert response.status_code == 401
-        assert response.json() == {"error": "authentication failed"}
+        assert response.status_code == 200
+        assert response.json()["error"]["message"] == "authentication failed"
 
     anyio.run(request_with_wrong_header)
 

@@ -121,13 +121,23 @@ header:
 Authorization: Bearer <token>
 ```
 
-Wrong or missing authorization headers on tool calls return:
+Wrong or missing authorization headers on tool calls return a JSON-RPC error:
 
 ```json
 {
-  "error": "authentication failed"
+  "jsonrpc": "2.0",
+  "id": 1,
+  "error": {
+    "code": -32001,
+    "message": "authentication failed"
+  }
 }
 ```
+
+The server deliberately avoids returning HTTP `401` for MCP tool-call auth
+failures because some MCP clients interpret `401` as a signal to start an OAuth
+flow. FitTrack MCP uses the custom `Authorization: Bearer <token>` header
+instead.
 
 ## Phase 1 Deployment
 

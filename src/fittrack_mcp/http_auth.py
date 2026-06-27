@@ -47,7 +47,7 @@ class AuthorizationHeaderMiddleware:
             client = self.fittrack_client or SupabaseFitTrackClient()
             user = await client.resolve_token(token)
         except (AuthenticationError, Exception):
-            response = JSONResponse({"error": "authentication failed"}, status_code=401)
+            response = JSONResponse(_authentication_failed_jsonrpc(body), status_code=200)
             await response(scope, receive, send)
             return
 
@@ -102,3 +102,24 @@ def _is_tool_call(body: bytes) -> bool:
 
 def _message_is_tool_call(message: object) -> bool:
     return isinstance(message, dict) and message.get("method") == "tools/call"
+
+
+def _authentication_failed_jsonrpc(body: bytes) -> dict:
+    request_id = None
+    try:
+        payload = json.loads(body)
+        if isinstance(payload, dict):
+            request_id = payload.get("id")
+        elif isinstance(payload, list) and payload and isinstance(payload[0], dict):
+            request_id = payload[0].get("id")
+    except json.JSONDecodeError:
+        pass
+
+    return {
+        "jsonrpc": "2.0",
+        "id": request_id,
+        "error": {
+            "code": -32001,
+            "message": "authentication failed",
+        },
+    }
