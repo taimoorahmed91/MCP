@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from typing import Any
 
 import httpx
 
@@ -13,6 +14,10 @@ from .auth import AuthenticatedUser, AuthenticationError, fingerprint_token
 
 class SupabaseConfigError(RuntimeError):
     """Raised when required Supabase environment variables are missing."""
+
+
+class TokenLookupError(AuthenticationError):
+    """Raised when the provided token does not resolve to a valid user."""
 
 
 @dataclass(frozen=True)
@@ -63,9 +68,23 @@ class SupabaseFitTrackClient:
 
         rows = response.json()
         if not rows:
-            raise AuthenticationError("authentication failed")
+            raise TokenLookupError("authentication failed")
 
         return AuthenticatedUser(user_id=rows[0]["user_id"])
+
+    async def debug_token_hash_lookup(self, token_hash: str) -> list[dict[str, Any]]:
+        async with httpx.AsyncClient(base_url=self.settings.url, headers=self.headers) as client:
+            response = await client.get(
+                "/rest/v1/fittrack_api_tokens",
+                params={
+                    "select": "user_id,expires_at",
+                    "token_hash": f"eq.{token_hash}",
+                    "limit": "1",
+                },
+            )
+            response.raise_for_status()
+
+        return response.json()
 
     async def get_profile_full_name(self, user_id: str) -> str:
         async with httpx.AsyncClient(base_url=self.settings.url, headers=self.headers) as client:

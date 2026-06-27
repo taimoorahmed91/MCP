@@ -3,18 +3,22 @@
 from __future__ import annotations
 
 import json
+import logging
 from collections.abc import Awaitable, Callable
+
+import httpx
 
 from starlette.responses import JSONResponse
 from starlette.types import Message, Receive, Scope, Send
 
-from .auth import AuthenticationError, extract_bearer_token
+from .auth import AuthenticationError, extract_bearer_token, fingerprint_token
 from .request_user import current_user
-from .supabase_client import SupabaseFitTrackClient
+from .supabase_client import SupabaseConfigError, SupabaseFitTrackClient, TokenLookupError
 
 
 ASGIApp = Callable[[Scope, Receive, Send], Awaitable[None]]
 AUTH_BYPASS_PATHS = {"/register"}
+logger = logging.getLogger(__name__)
 
 
 class AuthorizationHeaderMiddleware:
@@ -43,10 +47,38 @@ class AuthorizationHeaderMiddleware:
             return
 
         try:
-            token = extract_bearer_token(_get_header(scope, "authorization"))
+            authorization_header = _get_header(scope, "authorization")
+            token = extract_bearer_token(authorization_header)
             client = self.fittrack_client or SupabaseFitTrackClient()
             user = await client.resolve_token(token)
-        except (AuthenticationError, Exception):
+        except TokenLookupError:
+            logger.warning("fittrack auth failed: no unexpired token row matched")
+            await _log_token_hash_row_state(token, client)
+            response = JSONResponse(_authentication_failed_jsonrpc(body), status_code=200)
+            await response(scope, receive, send)
+            return
+        except SupabaseConfigError:
+            logger.exception("fittrack auth failed: Supabase environment is not configured")
+            response = JSONResponse(_authentication_failed_jsonrpc(body), status_code=200)
+            await response(scope, receive, send)
+            return
+        except httpx.HTTPStatusError as exc:
+            logger.exception("fittrack auth failed: Supabase returned HTTP %s", exc.response.status_code)
+            response = JSONResponse(_authentication_failed_jsonrpc(body), status_code=200)
+            await response(scope, receive, send)
+            return
+        except httpx.RequestError:
+            logger.exception("fittrack auth failed: Supabase request failed")
+            response = JSONResponse(_authentication_failed_jsonrpc(body), status_code=200)
+            await response(scope, receive, send)
+            return
+        except AuthenticationError:
+            logger.warning("fittrack auth failed: missing or invalid Authorization Bearer header")
+            response = JSONResponse(_authentication_failed_jsonrpc(body), status_code=200)
+            await response(scope, receive, send)
+            return
+        except Exception:
+            logger.exception("fittrack auth failed: unexpected error")
             response = JSONResponse(_authentication_failed_jsonrpc(body), status_code=200)
             await response(scope, receive, send)
             return
@@ -123,3 +155,20 @@ def _authentication_failed_jsonrpc(body: bytes) -> dict:
             "message": "authentication failed",
         },
     }
+
+
+async def _log_token_hash_row_state(token: str, client: SupabaseFitTrackClient) -> None:
+    try:
+        rows = await client.debug_token_hash_lookup(fingerprint_token(token))
+    except Exception:
+        logger.exception("fittrack auth debug: failed to query token row by hash")
+        return
+
+    if not rows:
+        logger.warning("fittrack auth debug: token hash does not exist in fittrack_api_tokens")
+        return
+
+    logger.warning(
+        "fittrack auth debug: token hash exists but is expired or not valid; expires_at=%s",
+        rows[0].get("expires_at"),
+    )
