@@ -124,6 +124,7 @@ def test_asgi_app_register_returns_200_without_authorization_header():
         payload = response.json()
         assert isinstance(payload["client_id"], str)
         assert isinstance(payload["redirect_uris"], list)
+        assert "scope" not in payload
 
     anyio.run(request_register_without_header)
 
