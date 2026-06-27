@@ -31,7 +31,8 @@ the public MCP connector.
 The current Phase 3A code resolves real app-generated tokens through Supabase
 and adds a `get_user` tool that returns the authenticated user's `full_name`
 from the `profiles` table. The workout and nutrition tools still return
-placeholder data.
+placeholder data. Phase 3B has started with a real `get_meals` tool backed by
+the `fittrack_meals` table.
 
 ## Planned Phases
 
@@ -41,7 +42,7 @@ placeholder data.
 | 1 | Public HTTPS deployment with fake responses | Complete |
 | 2 | Online testing with Claude using the public MCP connector | Complete |
 | 3A | Supabase-backed token lookup and `get_user` profile lookup | Implemented |
-| 3B | Replace placeholder workout/nutrition responses with real FitTrack data | Not started |
+| 3B | Replace placeholder workout/nutrition responses with real FitTrack data | Started with `get_meals` |
 | 4 | Safety review for expiry, revocation, isolation, and rate limits | Not started |
 | 5 | Everyday Claude usage | Not started |
 
@@ -111,6 +112,7 @@ uv run fittrack-mcp-stdio
 The MCP tools are:
 
 - `get_user`
+- `get_meals`
 - `recent_workouts`
 - `today_nutrition`
 
@@ -274,8 +276,24 @@ Returns the full name of the authenticated FitTrack user. No inputs required.
 
 ## Phase 3B Next Step
 
-Phase 3B should replace the placeholder workout and nutrition responses with
-real Supabase data, scoped to the `user_id` resolved from the Bearer token.
+Phase 3B has started with `get_meals`.
+
+The `get_meals` tool reads from `fittrack_meals`, scoped to the `user_id`
+resolved from the Bearer token. It accepts optional inputs:
+
+- `date`: `YYYY-MM-DD`; defaults to today's date when omitted.
+- `calories`: positive integer; defaults to `calories > 0` when omitted.
+
+It returns meal rows with:
+
+- `id`
+- `date`
+- `time`
+- `food`
+- `calories`
+
+Remaining Phase 3B work: replace the placeholder workout and nutrition tools
+with real Supabase-backed queries.
 
 ## Security Principles
 
