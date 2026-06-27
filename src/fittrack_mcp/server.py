@@ -12,7 +12,12 @@ from .http_auth import AuthorizationHeaderMiddleware
 from .auth import AuthenticationError, extract_bearer_token, fingerprint_token
 from .register import build_registration_response
 from .supabase_client import SupabaseConfigError, SupabaseFitTrackClient, TokenLookupError
-from .tools import get_authenticated_user_full_name, get_recent_workouts, get_today_nutrition
+from .tools import (
+    get_authenticated_user_full_name,
+    get_authenticated_user_meals,
+    get_recent_workouts,
+    get_today_nutrition,
+)
 
 
 SERVER_NAME = "FitTrack MCP Server"
@@ -53,6 +58,12 @@ def build_server(*, deployed: bool = False):
         """Returns the full name of the authenticated FitTrack user. No inputs required."""
 
         return await get_authenticated_user_full_name()
+
+    @mcp.tool()
+    async def get_meals(date: str | None = None, calories: int | None = None) -> list[dict]:
+        """Returns meals for the authenticated FitTrack user. Optional inputs: date as YYYY-MM-DD, and calories as a positive integer. If date is omitted, today's date is used. If calories is omitted, only meals with calories greater than zero are returned."""
+
+        return await get_authenticated_user_meals(date=date, calories=calories)
 
     @mcp.tool()
     def recent_workouts(limit: int = 5) -> dict:

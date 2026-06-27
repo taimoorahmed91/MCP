@@ -88,3 +88,41 @@ def test_get_profile_full_name_queries_profiles(monkeypatch):
         assert await client.get_profile_full_name("user-123") == "Taimoor Ahmed"
 
     anyio.run(lookup)
+
+
+def test_get_meals_defaults_to_nonzero_calories(monkeypatch):
+    async def handler(request):
+        assert request.url.path == "/rest/v1/fittrack_meals"
+        assert request.url.params["select"] == "id,date,time,food,calories"
+        assert request.url.params["user_id"] == "eq.user-123"
+        assert request.url.params["date"] == "eq.2026-01-03"
+        assert request.url.params["calories"] == "gt.0"
+        assert request.url.params["order"] == "time.asc"
+        return httpx.Response(200, json=[{"food": "Fried Eggs", "calories": 580}])
+
+    transport = httpx.MockTransport(handler)
+    original_async_client = httpx.AsyncClient
+    monkeypatch.setattr(httpx, "AsyncClient", lambda **kwargs: original_async_client(transport=transport, **kwargs))
+
+    async def lookup():
+        client = SupabaseFitTrackClient(SupabaseSettings(url="https://example.supabase.co", service_role_key="service-key"))
+        rows = await client.get_meals("user-123", meal_date="2026-01-03")
+        assert rows == [{"food": "Fried Eggs", "calories": 580}]
+
+    anyio.run(lookup)
+
+
+def test_get_meals_filters_exact_calories_when_provided(monkeypatch):
+    async def handler(request):
+        assert request.url.params["calories"] == "eq.580"
+        return httpx.Response(200, json=[])
+
+    transport = httpx.MockTransport(handler)
+    original_async_client = httpx.AsyncClient
+    monkeypatch.setattr(httpx, "AsyncClient", lambda **kwargs: original_async_client(transport=transport, **kwargs))
+
+    async def lookup():
+        client = SupabaseFitTrackClient(SupabaseSettings(url="https://example.supabase.co", service_role_key="service-key"))
+        assert await client.get_meals("user-123", meal_date="2026-01-03", calories=580) == []
+
+    anyio.run(lookup)

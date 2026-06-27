@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Any
 
 from .request_user import current_user
@@ -19,6 +20,26 @@ async def get_authenticated_user_full_name(
 
     client = fittrack_client or SupabaseFitTrackClient()
     return await client.get_profile_full_name(user.user_id)
+
+
+async def get_authenticated_user_meals(
+    *,
+    date: str | None = None,
+    calories: int | None = None,
+    fittrack_client: SupabaseFitTrackClient | None = None,
+) -> list[dict[str, Any]]:
+    """Return meals for the authenticated FitTrack user."""
+
+    user = current_user.get()
+    if user is None:
+        raise RuntimeError("authentication failed")
+
+    meal_date = date or datetime.now(timezone.utc).date().isoformat()
+    if calories is not None and calories <= 0:
+        raise ValueError("calories must be a non-zero positive integer")
+
+    client = fittrack_client or SupabaseFitTrackClient()
+    return await client.get_meals(user.user_id, meal_date=meal_date, calories=calories)
 
 
 def get_recent_workouts(*, user_id: str = "phase0-demo-user", limit: int = 5) -> dict[str, Any]:

@@ -103,3 +103,25 @@ class SupabaseFitTrackClient:
             raise LookupError("profile not found")
 
         return rows[0]["full_name"]
+
+    async def get_meals(self, user_id: str, *, meal_date: str, calories: int | None = None) -> list[dict[str, Any]]:
+        params = {
+            "select": "id,date,time,food,calories",
+            "user_id": f"eq.{user_id}",
+            "date": f"eq.{meal_date}",
+            "order": "time.asc",
+        }
+
+        if calories is None:
+            params["calories"] = "gt.0"
+        else:
+            params["calories"] = f"eq.{calories}"
+
+        async with httpx.AsyncClient(base_url=self.settings.url, headers=self.headers) as client:
+            response = await client.get(
+                "/rest/v1/fittrack_meals",
+                params=params,
+            )
+            response.raise_for_status()
+
+        return response.json()

@@ -77,6 +77,8 @@ def test_tools_do_not_expose_token_parameter():
 
         assert input_schemas["get_user"]["properties"] == {}
         assert descriptions["get_user"] == "Returns the full name of the authenticated FitTrack user. No inputs required."
+        assert "date" in input_schemas["get_meals"]["properties"]
+        assert "calories" in input_schemas["get_meals"]["properties"]
         assert "token" not in input_schemas["recent_workouts"]["properties"]
         assert "token" not in input_schemas["today_nutrition"]["properties"]
 
