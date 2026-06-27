@@ -15,10 +15,11 @@ class FakeFitTrackClient:
         assert user_id == "user-123"
         return "Taimoor Ahmed"
 
-    async def get_meals(self, user_id, *, meal_date, calories=None):
+    async def get_meals(self, user_id, *, meal_date, calories_min=None, calories_max=None):
         assert user_id == "user-123"
         assert meal_date == "2026-01-03"
-        assert calories == 580
+        assert calories_min == 500
+        assert calories_max == 700
         return [{"date": meal_date, "time": "12:55", "food": "Fried Eggs", "calories": 580}]
 
 
@@ -56,7 +57,8 @@ def test_get_authenticated_user_meals_uses_current_user():
         try:
             meals = await get_authenticated_user_meals(
                 date="2026-01-03",
-                calories=580,
+                calories_min=500,
+                calories_max=700,
                 fittrack_client=FakeFitTrackClient(),
             )
         finally:

@@ -104,18 +104,27 @@ class SupabaseFitTrackClient:
 
         return rows[0]["full_name"]
 
-    async def get_meals(self, user_id: str, *, meal_date: str, calories: int | None = None) -> list[dict[str, Any]]:
-        params = {
-            "select": "id,date,time,food,calories",
-            "user_id": f"eq.{user_id}",
-            "date": f"eq.{meal_date}",
-            "order": "time.asc",
-        }
+    async def get_meals(
+        self,
+        user_id: str,
+        *,
+        meal_date: str,
+        calories_min: int | None = None,
+        calories_max: int | None = None,
+    ) -> list[dict[str, Any]]:
+        params = [
+            ("select", "id,date,time,food,calories"),
+            ("user_id", f"eq.{user_id}"),
+            ("date", f"eq.{meal_date}"),
+            ("order", "time.asc"),
+        ]
 
-        if calories is None:
-            params["calories"] = "gt.0"
-        else:
-            params["calories"] = f"eq.{calories}"
+        if calories_min is None and calories_max is None:
+            params.append(("calories", "gt.0"))
+        if calories_min is not None:
+            params.append(("calories", f"gte.{calories_min}"))
+        if calories_max is not None:
+            params.append(("calories", f"lte.{calories_max}"))
 
         async with httpx.AsyncClient(base_url=self.settings.url, headers=self.headers) as client:
             response = await client.get(

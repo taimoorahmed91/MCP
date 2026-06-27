@@ -60,10 +60,18 @@ def build_server(*, deployed: bool = False):
         return await get_authenticated_user_full_name()
 
     @mcp.tool()
-    async def get_meals(date: str | None = None, calories: int | None = None) -> list[dict]:
-        """Returns meals for the authenticated FitTrack user. Optional inputs: date as YYYY-MM-DD, and calories as a positive integer. If date is omitted, today's date is used. If calories is omitted, only meals with calories greater than zero are returned."""
+    async def get_meals(
+        date: str | None = None,
+        calories_min: int | None = None,
+        calories_max: int | None = None,
+    ) -> list[dict]:
+        """Returns meals for the authenticated FitTrack user. Optional inputs: date as YYYY-MM-DD, calories_min, and calories_max. If date is omitted, today's date is used. If no calorie range is provided, only meals with calories greater than zero are returned."""
 
-        return await get_authenticated_user_meals(date=date, calories=calories)
+        return await get_authenticated_user_meals(
+            date=date,
+            calories_min=calories_min,
+            calories_max=calories_max,
+        )
 
     @mcp.tool()
     def recent_workouts(limit: int = 5) -> dict:

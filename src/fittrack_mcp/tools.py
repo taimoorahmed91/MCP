@@ -25,7 +25,8 @@ async def get_authenticated_user_full_name(
 async def get_authenticated_user_meals(
     *,
     date: str | None = None,
-    calories: int | None = None,
+    calories_min: int | None = None,
+    calories_max: int | None = None,
     fittrack_client: SupabaseFitTrackClient | None = None,
 ) -> list[dict[str, Any]]:
     """Return meals for the authenticated FitTrack user."""
@@ -35,11 +36,20 @@ async def get_authenticated_user_meals(
         raise RuntimeError("authentication failed")
 
     meal_date = date or datetime.now(timezone.utc).date().isoformat()
-    if calories is not None and calories <= 0:
-        raise ValueError("calories must be a non-zero positive integer")
+    if calories_min is not None and calories_min <= 0:
+        raise ValueError("calories_min must be a non-zero positive integer")
+    if calories_max is not None and calories_max <= 0:
+        raise ValueError("calories_max must be a non-zero positive integer")
+    if calories_min is not None and calories_max is not None and calories_min > calories_max:
+        raise ValueError("calories_min must be less than or equal to calories_max")
 
     client = fittrack_client or SupabaseFitTrackClient()
-    return await client.get_meals(user.user_id, meal_date=meal_date, calories=calories)
+    return await client.get_meals(
+        user.user_id,
+        meal_date=meal_date,
+        calories_min=calories_min,
+        calories_max=calories_max,
+    )
 
 
 def get_recent_workouts(*, user_id: str = "phase0-demo-user", limit: int = 5) -> dict[str, Any]:

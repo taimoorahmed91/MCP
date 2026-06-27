@@ -282,7 +282,10 @@ The `get_meals` tool reads from `fittrack_meals`, scoped to the `user_id`
 resolved from the Bearer token. It accepts optional inputs:
 
 - `date`: `YYYY-MM-DD`; defaults to today's date when omitted.
-- `calories`: positive integer; defaults to `calories > 0` when omitted.
+- `calories_min`: positive integer lower bound.
+- `calories_max`: positive integer upper bound.
+
+When no calorie range is provided, it defaults to `calories > 0`.
 
 It returns meal rows with:
 

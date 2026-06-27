@@ -96,7 +96,7 @@ def test_get_meals_defaults_to_nonzero_calories(monkeypatch):
         assert request.url.params["select"] == "id,date,time,food,calories"
         assert request.url.params["user_id"] == "eq.user-123"
         assert request.url.params["date"] == "eq.2026-01-03"
-        assert request.url.params["calories"] == "gt.0"
+        assert request.url.params.get_list("calories") == ["gt.0"]
         assert request.url.params["order"] == "time.asc"
         return httpx.Response(200, json=[{"food": "Fried Eggs", "calories": 580}])
 
@@ -112,9 +112,9 @@ def test_get_meals_defaults_to_nonzero_calories(monkeypatch):
     anyio.run(lookup)
 
 
-def test_get_meals_filters_exact_calories_when_provided(monkeypatch):
+def test_get_meals_filters_calorie_range_when_provided(monkeypatch):
     async def handler(request):
-        assert request.url.params["calories"] == "eq.580"
+        assert request.url.params.get_list("calories") == ["gte.500", "lte.700"]
         return httpx.Response(200, json=[])
 
     transport = httpx.MockTransport(handler)
@@ -123,6 +123,6 @@ def test_get_meals_filters_exact_calories_when_provided(monkeypatch):
 
     async def lookup():
         client = SupabaseFitTrackClient(SupabaseSettings(url="https://example.supabase.co", service_role_key="service-key"))
-        assert await client.get_meals("user-123", meal_date="2026-01-03", calories=580) == []
+        assert await client.get_meals("user-123", meal_date="2026-01-03", calories_min=500, calories_max=700) == []
 
     anyio.run(lookup)
