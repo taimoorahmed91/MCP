@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from .http_auth import AuthorizationHeaderMiddleware
-from .tools import get_recent_workouts, get_today_nutrition
+from .tools import get_authenticated_user_full_name, get_recent_workouts, get_today_nutrition
 
 
 SERVER_NAME = "FitTrack MCP Server"
@@ -35,6 +35,12 @@ def build_server(*, deployed: bool = False):
         streamable_http_path=MCP_PATH,
         stateless_http=deployed,
     )
+
+    @mcp.tool()
+    async def get_user() -> str:
+        """Returns the full name of the authenticated FitTrack user. No inputs required."""
+
+        return await get_authenticated_user_full_name()
 
     @mcp.tool()
     def recent_workouts(limit: int = 5) -> dict:

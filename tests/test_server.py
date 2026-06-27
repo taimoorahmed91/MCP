@@ -2,7 +2,7 @@ import anyio
 import httpx
 from starlette.testclient import TestClient
 
-from fittrack_mcp.auth import fingerprint_token
+from fittrack_mcp.auth import AuthenticatedUser
 from fittrack_mcp.http_auth import AuthorizationHeaderMiddleware
 from fittrack_mcp.server import (
     DEFAULT_HOST,
@@ -47,7 +47,10 @@ def test_tools_do_not_expose_token_parameter():
     async def check_tools():
         tools = await build_server().list_tools()
         input_schemas = {tool.name: tool.inputSchema for tool in tools}
+        descriptions = {tool.name: tool.description for tool in tools}
 
+        assert input_schemas["get_user"]["properties"] == {}
+        assert descriptions["get_user"] == "Returns the full name of the authenticated FitTrack user. No inputs required."
         assert "token" not in input_schemas["recent_workouts"]["properties"]
         assert "token" not in input_schemas["today_nutrition"]["properties"]
 
@@ -79,11 +82,18 @@ def test_asgi_app_rejects_wrong_authorization_header():
 
 
 def test_asgi_app_allows_valid_authorization_header(monkeypatch):
-    token = "unit-test-token"
-    monkeypatch.setattr("fittrack_mcp.auth.KNOWN_TOKEN_FINGERPRINT", fingerprint_token(token))
+    class FakeFitTrackClient:
+        async def resolve_token(self, token):
+            assert token == "unit-test-token"
+            return AuthenticatedUser(user_id="user-123")
 
-    with TestClient(build_asgi_app()) as client:
-        response = client.get(MCP_PATH, headers={"Authorization": f"Bearer {token}"})
+    app = AuthorizationHeaderMiddleware(
+        build_server(deployed=True).streamable_http_app(),
+        fittrack_client=FakeFitTrackClient(),
+    )
+
+    with TestClient(app) as client:
+        response = client.get(MCP_PATH, headers={"Authorization": "Bearer unit-test-token"})
 
     assert response.status_code == 406
     assert "Client must accept text/event-stream" in response.text

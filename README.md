@@ -22,14 +22,16 @@ and this server read from the same Supabase database.
 
 ## Current Status
 
-Phases 0 through 2 are complete for the fake-data MCP server.
+Phases 0 through 2 are complete, and Phase 3 Sub-step A is implemented.
 
 The server runs over Streamable HTTP, validates a Bearer token from the
-`Authorization` header, exposes two placeholder tools, and has been successfully
-called from Claude through the public MCP connector.
+`Authorization` header, and has been successfully called from Claude through
+the public MCP connector.
 
-The next major step is Phase 3: replace the hardcoded token fingerprint and fake
-responses with Supabase-backed token lookup and real FitTrack data.
+The current Phase 3A code resolves real app-generated tokens through Supabase
+and adds a `get_user` tool that returns the authenticated user's `full_name`
+from the `profiles` table. The workout and nutrition tools still return
+placeholder data.
 
 ## Planned Phases
 
@@ -38,7 +40,8 @@ responses with Supabase-backed token lookup and real FitTrack data.
 | 0 | Local Streamable HTTP MCP server with fake responses and token checking | Complete |
 | 1 | Public HTTPS deployment with fake responses | Complete |
 | 2 | Online testing with Claude using the public MCP connector | Complete |
-| 3 | Supabase-backed token lookup and real FitTrack data | Not started |
+| 3A | Supabase-backed token lookup and `get_user` profile lookup | Implemented |
+| 3B | Replace placeholder workout/nutrition responses with real FitTrack data | Not started |
 | 4 | Safety review for expiry, revocation, isolation, and rate limits | Not started |
 | 5 | Everyday Claude usage | Not started |
 
@@ -92,8 +95,9 @@ For clients that specifically need stdio instead of HTTP, use:
 uv run fittrack-mcp-stdio
 ```
 
-The Phase 0 MCP tools are:
+The MCP tools are:
 
+- `get_user`
 - `recent_workouts`
 - `today_nutrition`
 
@@ -128,11 +132,29 @@ After deployment, the MCP endpoint should be:
 https://<your-vercel-project>.vercel.app/mcp
 ```
 
-Use the local Phase 0 development token as an `Authorization: Bearer ...`
-header while testing Phase 1. Keep that token outside Git.
+Use a real app-generated FitTrack token as an `Authorization: Bearer ...`
+header once the Supabase environment variables are configured.
 
 The deployment entrypoint is [app.py](app.py), which exposes the MCP server as
 an ASGI app for Vercel.
+
+## Environment Variables
+
+Set these in Vercel before testing Phase 3A:
+
+```text
+SUPABASE_URL
+SUPABASE_SERVICE_ROLE_KEY
+```
+
+The Supabase project URL is:
+
+```text
+https://nywsjgxlnilmcztnvidc.supabase.co
+```
+
+The service role key must only be stored in the deployment environment. Do not
+commit it to Git.
 
 ## Phase 2 Claude Test
 
@@ -150,20 +172,30 @@ The response returned the expected Phase 0 placeholder workouts:
 - 2026-06-20 mobility session.
 
 This confirms the connector can load the server, discover the tools, choose a
-tool, send the Bearer token, and receive a tool response. The data is still
-demo data until Phase 3 connects Supabase.
+tool, send the Bearer token, and receive a tool response.
 
-## Phase 3 Next Step
+## Phase 3A
 
-Phase 3 should replace the local hardcoded token fingerprint with a Supabase
-lookup:
+Phase 3A replaces the local hardcoded token fingerprint with a Supabase lookup:
 
 - read `Authorization: Bearer <token>` from each request;
 - hash the token with SHA-256;
-- look up the fingerprint in the FitTrack token table;
+- look up the fingerprint in `fittrack_api_tokens.token_hash`;
+- require `fittrack_api_tokens.expires_at` to be later than the current time;
 - reject missing, wrong, expired, or revoked tokens;
-- use the resolved user ID to scope every FitTrack data query;
-- replace placeholder tool responses with real Supabase data.
+- use the resolved `user_id` to query `profiles.id`;
+- return `profiles.full_name` from the `get_user` tool.
+
+The `get_user` tool has no inputs and is described to clients as:
+
+```text
+Returns the full name of the authenticated FitTrack user. No inputs required.
+```
+
+## Phase 3B Next Step
+
+Phase 3B should replace the placeholder workout and nutrition responses with
+real Supabase data, scoped to the `user_id` resolved from the Bearer token.
 
 ## Security Principles
 

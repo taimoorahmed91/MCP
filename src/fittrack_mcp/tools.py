@@ -4,6 +4,22 @@ from __future__ import annotations
 
 from typing import Any
 
+from .request_user import current_user
+from .supabase_client import SupabaseFitTrackClient
+
+
+async def get_authenticated_user_full_name(
+    fittrack_client: SupabaseFitTrackClient | None = None,
+) -> str:
+    """Return the authenticated FitTrack user's full name."""
+
+    user = current_user.get()
+    if user is None:
+        raise RuntimeError("authentication failed")
+
+    client = fittrack_client or SupabaseFitTrackClient()
+    return await client.get_profile_full_name(user.user_id)
+
 
 def get_recent_workouts(*, user_id: str = "phase0-demo-user", limit: int = 5) -> dict[str, Any]:
     """Return fixed workout data to prove the request path works."""

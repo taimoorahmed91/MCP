@@ -1,16 +1,9 @@
-"""Token authentication for the Phase 0 server."""
+"""Token authentication for the FitTrack MCP server."""
 
 from __future__ import annotations
 
 import hashlib
-import hmac
 from dataclasses import dataclass
-from datetime import datetime, timezone
-
-
-KNOWN_TOKEN_FINGERPRINT = (
-    "8d7290a9091a2b494e899f7e3ae5281a75eb243b05dcb619917049ad82fe2345"
-)
 
 
 class AuthenticationError(Exception):
@@ -30,38 +23,7 @@ def fingerprint_token(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
-def is_token_expired(now: datetime | None = None) -> bool:
-    """Phase 0 expiry hook.
-
-    The real server will check the database token expiry here. For Phase 0 the
-    shape is present, but the known local token is treated as not expired.
-    """
-
-    _ = now or datetime.now(timezone.utc)
-    return False
-
-
-def authenticate_token(token: str | None) -> AuthenticatedUser:
-    """Validate a token and return the resolved user.
-
-    Phase 0 uses one hardcoded token fingerprint. Later phases will keep this
-    function's role but swap its source of truth to Supabase.
-    """
-
-    if not token:
-        raise AuthenticationError("authentication failed")
-
-    incoming_fingerprint = fingerprint_token(token)
-    if not hmac.compare_digest(incoming_fingerprint, KNOWN_TOKEN_FINGERPRINT):
-        raise AuthenticationError("authentication failed")
-
-    if is_token_expired():
-        raise AuthenticationError("authentication failed")
-
-    return AuthenticatedUser(user_id="phase0-demo-user")
-
-
-def authenticate_authorization_header(header_value: str | None) -> AuthenticatedUser:
+def extract_bearer_token(header_value: str | None) -> str:
     """Validate an HTTP Authorization header carrying a Bearer token."""
 
     prefix = "Bearer "
@@ -69,4 +31,7 @@ def authenticate_authorization_header(header_value: str | None) -> Authenticated
         raise AuthenticationError("authentication failed")
 
     token = header_value[len(prefix) :].strip()
-    return authenticate_token(token)
+    if not token:
+        raise AuthenticationError("authentication failed")
+
+    return token
