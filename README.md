@@ -140,18 +140,12 @@ an ASGI app for Vercel.
 
 ## Environment Variables
 
-Set these in Vercel before testing Phase 3A:
+These Phase 3A variables have been added in Vercel:
 
-```text
-SUPABASE_URL
-SUPABASE_SERVICE_ROLE_KEY
-```
-
-The Supabase project URL is:
-
-```text
-https://nywsjgxlnilmcztnvidc.supabase.co
-```
+| Variable | Vercel status | Value |
+| --- | --- | --- |
+| `SUPABASE_URL` | Added | `https://nywsjgxlnilmcztnvidc.supabase.co` |
+| `SUPABASE_SERVICE_ROLE_KEY` | Added | Stored only in Vercel, not committed |
 
 The service role key must only be stored in the deployment environment. Do not
 commit it to Git.
