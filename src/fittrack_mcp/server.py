@@ -40,6 +40,7 @@ def build_server(*, deployed: bool = False):
         port=DEFAULT_PORT,
         streamable_http_path=MCP_PATH,
         stateless_http=deployed,
+        json_response=deployed,
     )
 
     @mcp.tool()

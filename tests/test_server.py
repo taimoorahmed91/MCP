@@ -32,6 +32,7 @@ def test_deployed_server_uses_stateless_http():
     assert server.settings.host == DEPLOYED_HOST
     assert server.settings.streamable_http_path == MCP_PATH
     assert server.settings.stateless_http is True
+    assert server.settings.json_response is True
 
 
 def test_asgi_app_builds_for_deployment():
@@ -123,6 +124,35 @@ def test_asgi_app_register_returns_200_without_authorization_header():
         assert response.json() == {"ok": True}
 
     anyio.run(request_register_without_header)
+
+
+def test_asgi_app_initialize_returns_json_response_without_authorization_header():
+    async def initialize():
+        transport = httpx.ASGITransport(app=build_asgi_app())
+        async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+            response = await client.post(
+                MCP_PATH,
+                headers={
+                    "Accept": "application/json, text/event-stream",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": "initialize",
+                    "params": {
+                        "protocolVersion": "2025-06-18",
+                        "capabilities": {},
+                        "clientInfo": {"name": "test", "version": "0.0.0"},
+                    },
+                },
+            )
+
+        assert response.status_code == 200
+        assert response.headers["content-type"].startswith("application/json")
+        assert response.json()["id"] == 1
+
+    anyio.run(initialize)
 
 
 def test_asgi_app_rejects_tool_call_without_authorization_header():

@@ -156,6 +156,10 @@ session manager around each serverless request. This avoids `POST /mcp` crashes
 when the platform does not run Starlette lifespan startup before invoking the
 function.
 
+Deployed mode also uses JSON responses for MCP POST requests. This is friendlier
+for Vercel and browser-based tools such as MCP Inspector than holding each POST
+open as an event stream.
+
 ## Claude Code Setup
 
 This server uses custom Bearer-token authentication, not OAuth. Add it to Claude
