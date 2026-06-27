@@ -98,6 +98,10 @@ http://127.0.0.1:8000/register
 `POST /register` is intentionally allowed without a Bearer token. Tool calls
 and other MCP requests still require `Authorization: Bearer <token>`.
 
+On Vercel, `/register` is routed to a standalone function at
+[api/register.py](api/register.py) so it cannot be intercepted by the MCP Bearer
+token middleware.
+
 For clients that specifically need stdio instead of HTTP, use:
 
 ```bash

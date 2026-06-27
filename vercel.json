@@ -1,11 +1,19 @@
 {
   "builds": [
     {
+      "src": "api/register.py",
+      "use": "@vercel/python"
+    },
+    {
       "src": "app.py",
       "use": "@vercel/python"
     }
   ],
   "routes": [
+    {
+      "src": "/register",
+      "dest": "api/register.py"
+    },
     {
       "src": "/(.*)",
       "dest": "app.py"
