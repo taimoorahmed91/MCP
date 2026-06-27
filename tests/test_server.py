@@ -121,7 +121,24 @@ def test_asgi_app_register_returns_200_without_authorization_header():
             response = await client.post(REGISTER_PATH)
 
         assert response.status_code == 200
-        assert response.json() == {"ok": True}
+        payload = response.json()
+        assert isinstance(payload["client_id"], str)
+        assert isinstance(payload["redirect_uris"], list)
+
+    anyio.run(request_register_without_header)
+
+
+def test_asgi_app_register_echoes_redirect_uris():
+    async def request_register_without_header():
+        transport = httpx.ASGITransport(app=build_asgi_app())
+        async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+            response = await client.post(
+                REGISTER_PATH,
+                json={"redirect_uris": ["http://localhost:6274/oauth/callback"]},
+            )
+
+        assert response.status_code == 200
+        assert response.json()["redirect_uris"] == ["http://localhost:6274/oauth/callback"]
 
     anyio.run(request_register_without_header)
 

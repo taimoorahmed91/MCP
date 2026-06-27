@@ -8,6 +8,7 @@ from starlette.responses import JSONResponse, Response
 from starlette.routing import Mount, Route
 
 from .http_auth import AuthorizationHeaderMiddleware
+from .register import build_registration_response
 from .tools import get_authenticated_user_full_name, get_recent_workouts, get_today_nutrition
 
 
@@ -79,7 +80,7 @@ def build_asgi_app():
 def build_local_asgi_app():
     """Build the local ASGI app with the same header authentication."""
 
-    return with_cors(build_http_app(deployed=False))
+    return with_cors(RequestScopedMCPApp(deployed=True))
 
 
 def with_cors(app):
@@ -116,6 +117,17 @@ class VercelMCPApp:
     """ASGI app that starts FastMCP's session manager per serverless request."""
 
     async def __call__(self, scope, receive, send):
+        app = RequestScopedMCPApp(deployed=True)
+        await app(scope, receive, send)
+
+
+class RequestScopedMCPApp:
+    """ASGI app that starts FastMCP's session manager around each request."""
+
+    def __init__(self, *, deployed: bool):
+        self.deployed = deployed
+
+    async def __call__(self, scope, receive, send):
         if scope["type"] != "http":
             response = Response(status_code=404)
             await response(scope, receive, send)
@@ -125,7 +137,7 @@ class VercelMCPApp:
             await register_request(scope, receive, send)
             return
 
-        mcp = build_server(deployed=True)
+        mcp = build_server(deployed=self.deployed)
         mcp_app = mcp.streamable_http_app()
         protected_app = AuthorizationHeaderMiddleware(mcp_app)
 
@@ -151,7 +163,12 @@ async def register(request):
     if request.method == "OPTIONS":
         return Response(status_code=200)
 
-    return JSONResponse({"ok": True}, status_code=200)
+    try:
+        request_body = await request.json()
+    except Exception:
+        request_body = {}
+
+    return JSONResponse(build_registration_response(request_body), status_code=200)
 
 
 async def register_request(scope, receive, send):
@@ -160,7 +177,7 @@ async def register_request(scope, receive, send):
     if scope.get("method") == "OPTIONS":
         response = Response(status_code=200)
     else:
-        response = JSONResponse({"ok": True}, status_code=200)
+        response = JSONResponse(build_registration_response(), status_code=200)
 
     await response(scope, receive, send)
 
