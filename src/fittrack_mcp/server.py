@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from starlette.applications import Starlette
+from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import JSONResponse, Response
 from starlette.routing import Mount, Route
 
@@ -71,13 +72,25 @@ def build_server(*, deployed: bool = False):
 def build_asgi_app():
     """Build the ASGI app used by HTTPS hosting providers."""
 
-    return VercelMCPApp()
+    return with_cors(VercelMCPApp())
 
 
 def build_local_asgi_app():
     """Build the local ASGI app with the same header authentication."""
 
-    return build_http_app(deployed=False)
+    return with_cors(build_http_app(deployed=False))
+
+
+def with_cors(app):
+    """Allow browser-based MCP clients such as MCP Inspector."""
+
+    return CORSMiddleware(
+        app,
+        allow_origins=["*"],
+        allow_methods=["GET", "POST", "OPTIONS", "DELETE"],
+        allow_headers=["*"],
+        expose_headers=["*"],
+    )
 
 
 def build_http_app(*, deployed: bool):

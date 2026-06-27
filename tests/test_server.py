@@ -12,6 +12,7 @@ from fittrack_mcp.server import (
     MCP_PATH,
     REGISTER_PATH,
     build_asgi_app,
+    build_http_app,
     build_local_asgi_app,
     build_server,
 )
@@ -40,10 +41,30 @@ def test_asgi_app_builds_for_deployment():
 
 
 def test_local_asgi_app_uses_authorization_middleware():
-    app = build_local_asgi_app()
+    app = build_http_app(deployed=False)
 
     assert [route.path for route in app.routes] == [REGISTER_PATH, ""]
     assert isinstance(app.routes[1].app, AuthorizationHeaderMiddleware)
+
+
+def test_asgi_app_allows_browser_preflight_for_mcp_headers():
+    async def request_preflight():
+        transport = httpx.ASGITransport(app=build_asgi_app())
+        async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+            response = await client.options(
+                MCP_PATH,
+                headers={
+                    "Origin": "http://localhost:6274",
+                    "Access-Control-Request-Method": "POST",
+                    "Access-Control-Request-Headers": "authorization,content-type,accept",
+                },
+            )
+
+        assert response.status_code == 200
+        assert response.headers["access-control-allow-origin"] == "*"
+        assert "authorization" in response.headers["access-control-allow-headers"].lower()
+
+    anyio.run(request_preflight)
 
 
 def test_tools_do_not_expose_token_parameter():

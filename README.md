@@ -177,6 +177,19 @@ Do not rely on `/mcp` OAuth authentication for this server. `/register` is
 allowed for connector compatibility, but it is not a full OAuth dynamic client
 registration flow.
 
+## MCP Inspector
+
+Use these MCP Inspector settings:
+
+- Transport Type: `Streamable HTTP`
+- URL: `https://<your-vercel-project>.vercel.app/mcp`
+- Connection Type: `Direct`
+- Custom header name: `Authorization`
+- Custom header value: `Bearer <real-app-generated-token>`
+
+The Vercel ASGI app includes CORS support so browser-based direct connections
+can send the `Authorization` header.
+
 ## Environment Variables
 
 These Phase 3A variables have been added in Vercel:
