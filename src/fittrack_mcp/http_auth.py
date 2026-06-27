@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Awaitable, Callable
-from typing import Any
 
 from starlette.responses import JSONResponse
-from starlette.types import Receive, Scope, Send
+from starlette.types import Message, Receive, Scope, Send
 
 from .auth import AuthenticationError, extract_bearer_token
 from .request_user import current_user
@@ -18,7 +18,7 @@ AUTH_BYPASS_PATHS = {"/register"}
 
 
 class AuthorizationHeaderMiddleware:
-    """Require a valid Bearer token on every HTTP request."""
+    """Require a valid Bearer token on MCP tool-call requests."""
 
     def __init__(self, app: ASGIApp, fittrack_client: SupabaseFitTrackClient | None = None):
         self.app = app
@@ -30,6 +30,15 @@ class AuthorizationHeaderMiddleware:
             return
 
         if scope.get("path") in AUTH_BYPASS_PATHS:
+            await self.app(scope, receive, send)
+            return
+
+        if scope.get("method") != "POST":
+            await self.app(scope, receive, send)
+            return
+
+        body, receive = await _buffer_request_body(receive)
+        if not _is_tool_call(body):
             await self.app(scope, receive, send)
             return
 
@@ -55,3 +64,41 @@ def _get_header(scope: Scope, name: str) -> str | None:
         if key.lower() == wanted:
             return value.decode("latin-1")
     return None
+
+
+async def _buffer_request_body(receive: Receive) -> tuple[bytes, Receive]:
+    messages: list[Message] = []
+    body_parts: list[bytes] = []
+
+    while True:
+        message = await receive()
+        messages.append(message)
+        if message["type"] != "http.request":
+            break
+
+        body_parts.append(message.get("body", b""))
+        if not message.get("more_body", False):
+            break
+
+    async def replay_receive() -> Message:
+        if messages:
+            return messages.pop(0)
+        return {"type": "http.request", "body": b"", "more_body": False}
+
+    return b"".join(body_parts), replay_receive
+
+
+def _is_tool_call(body: bytes) -> bool:
+    try:
+        payload = json.loads(body)
+    except json.JSONDecodeError:
+        return False
+
+    if isinstance(payload, list):
+        return any(_message_is_tool_call(item) for item in payload)
+
+    return _message_is_tool_call(payload)
+
+
+def _message_is_tool_call(message: object) -> bool:
+    return isinstance(message, dict) and message.get("method") == "tools/call"

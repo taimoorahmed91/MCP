@@ -60,14 +60,18 @@ def test_tools_do_not_expose_token_parameter():
     anyio.run(check_tools)
 
 
-def test_asgi_app_rejects_missing_authorization_header():
+def test_authorization_middleware_allows_get_without_authorization_header():
+    async def inner_app(scope, receive, send):
+        response = JSONResponse({"ok": True, "method": scope["method"]})
+        await response(scope, receive, send)
+
     async def request_without_header():
-        transport = httpx.ASGITransport(app=build_asgi_app())
+        transport = httpx.ASGITransport(app=AuthorizationHeaderMiddleware(inner_app))
         async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
             response = await client.get(MCP_PATH)
 
-        assert response.status_code == 401
-        assert response.json() == {"error": "authentication failed"}
+        assert response.status_code == 200
+        assert response.json() == {"ok": True, "method": "GET"}
 
     anyio.run(request_without_header)
 
@@ -100,11 +104,40 @@ def test_asgi_app_register_returns_200_without_authorization_header():
     anyio.run(request_register_without_header)
 
 
-def test_asgi_app_rejects_wrong_authorization_header():
+def test_asgi_app_rejects_tool_call_without_authorization_header():
+    async def request_without_header():
+        transport = httpx.ASGITransport(app=build_asgi_app())
+        async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+            response = await client.post(
+                MCP_PATH,
+                json={
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": "tools/call",
+                    "params": {"name": "get_user", "arguments": {}},
+                },
+            )
+
+        assert response.status_code == 401
+        assert response.json() == {"error": "authentication failed"}
+
+    anyio.run(request_without_header)
+
+
+def test_asgi_app_rejects_tool_call_with_wrong_authorization_header():
     async def request_with_wrong_header():
         transport = httpx.ASGITransport(app=build_asgi_app())
         async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
-            response = await client.get(MCP_PATH, headers={"Authorization": "Bearer wrong-token"})
+            response = await client.post(
+                MCP_PATH,
+                headers={"Authorization": "Bearer wrong-token"},
+                json={
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": "tools/call",
+                    "params": {"name": "get_user", "arguments": {}},
+                },
+            )
 
         assert response.status_code == 401
         assert response.json() == {"error": "authentication failed"}
@@ -112,7 +145,7 @@ def test_asgi_app_rejects_wrong_authorization_header():
     anyio.run(request_with_wrong_header)
 
 
-def test_asgi_app_allows_valid_authorization_header(monkeypatch):
+def test_asgi_app_allows_valid_authorization_header():
     class FakeFitTrackClient:
         async def resolve_token(self, token):
             assert token == "unit-test-token"

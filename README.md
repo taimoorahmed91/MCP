@@ -114,14 +114,14 @@ The MCP tools are:
 - `recent_workouts`
 - `today_nutrition`
 
-The token is not a tool argument. Every MCP request must include this HTTP
+The token is not a tool argument. MCP tool-call requests must include this HTTP
 header:
 
 ```text
 Authorization: Bearer <token>
 ```
 
-Wrong or missing authorization headers return:
+Wrong or missing authorization headers on tool calls return:
 
 ```json
 {
@@ -150,6 +150,27 @@ header once the Supabase environment variables are configured.
 
 The deployment entrypoint is [app.py](app.py), which exposes the MCP server as
 an ASGI app for Vercel.
+
+## Claude Code Setup
+
+This server uses custom Bearer-token authentication, not OAuth. Add it to Claude
+Code with the token header configured up front:
+
+```bash
+claude mcp add --transport http fittrack https://<your-vercel-project>.vercel.app/mcp \
+  --header "Authorization: Bearer <real-app-generated-token>"
+```
+
+If the FitTrack token expires, remove and re-add the server with a fresh token,
+or configure Claude Code with a `headersHelper` that prints:
+
+```json
+{"Authorization": "Bearer <real-app-generated-token>"}
+```
+
+Do not rely on `/mcp` OAuth authentication for this server. `/register` is
+allowed for connector compatibility, but it is not a full OAuth dynamic client
+registration flow.
 
 ## Environment Variables
 
