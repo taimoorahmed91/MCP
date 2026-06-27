@@ -151,6 +151,11 @@ header once the Supabase environment variables are configured.
 The deployment entrypoint is [app.py](app.py), which exposes the MCP server as
 an ASGI app for Vercel.
 
+For Vercel, the deployed ASGI app explicitly starts FastMCP's Streamable HTTP
+session manager around each serverless request. This avoids `POST /mcp` crashes
+when the platform does not run Starlette lifespan startup before invoking the
+function.
+
 ## Claude Code Setup
 
 This server uses custom Bearer-token authentication, not OAuth. Add it to Claude

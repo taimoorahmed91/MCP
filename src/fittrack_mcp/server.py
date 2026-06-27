@@ -71,7 +71,7 @@ def build_server(*, deployed: bool = False):
 def build_asgi_app():
     """Build the ASGI app used by HTTPS hosting providers."""
 
-    return build_http_app(deployed=True)
+    return VercelMCPApp()
 
 
 def build_local_asgi_app():
@@ -98,6 +98,27 @@ def build_http_app(*, deployed: bool):
     )
 
 
+class VercelMCPApp:
+    """ASGI app that starts FastMCP's session manager per serverless request."""
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            response = Response(status_code=404)
+            await response(scope, receive, send)
+            return
+
+        if scope.get("path") == REGISTER_PATH:
+            await register_request(scope, receive, send)
+            return
+
+        mcp = build_server(deployed=True)
+        mcp_app = mcp.streamable_http_app()
+        protected_app = AuthorizationHeaderMiddleware(mcp_app)
+
+        async with mcp.session_manager.run():
+            await protected_app(scope, receive, send)
+
+
 def add_register_route(app):
     """Add the MCP connector registration handshake endpoint."""
 
@@ -117,6 +138,17 @@ async def register(request):
         return Response(status_code=200)
 
     return JSONResponse({"ok": True}, status_code=200)
+
+
+async def register_request(scope, receive, send):
+    """ASGI-compatible registration handler for deployed app fallbacks."""
+
+    if scope.get("method") == "OPTIONS":
+        response = Response(status_code=200)
+    else:
+        response = JSONResponse({"ok": True}, status_code=200)
+
+    await response(scope, receive, send)
 
 
 def main() -> None:
