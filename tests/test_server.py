@@ -8,6 +8,7 @@ from fittrack_mcp.http_auth import AuthorizationHeaderMiddleware
 from fittrack_mcp.server import (
     DEFAULT_HOST,
     DEFAULT_PORT,
+    DEBUG_AUTH_PATH,
     DEPLOYED_HOST,
     MCP_PATH,
     REGISTER_PATH,
@@ -171,6 +172,18 @@ def test_asgi_app_initialize_returns_json_response_without_authorization_header(
         assert response.json()["id"] == 1
 
     anyio.run(initialize)
+
+
+def test_debug_auth_reports_missing_authorization_header():
+    async def request_debug_auth():
+        transport = httpx.ASGITransport(app=build_asgi_app())
+        async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+            response = await client.get(DEBUG_AUTH_PATH)
+
+        assert response.status_code == 200
+        assert response.json()["stage"] == "authorization_header"
+
+    anyio.run(request_debug_auth)
 
 
 def test_asgi_app_rejects_tool_call_without_authorization_header():

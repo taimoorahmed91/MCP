@@ -204,6 +204,26 @@ Use these MCP Inspector settings:
 The Vercel ASGI app includes CORS support so browser-based direct connections
 can send the `Authorization` header.
 
+## Auth Debugging
+
+If `get_user` returns `MCP error -32001: authentication failed`, test the same
+Bearer token against:
+
+```text
+https://<your-vercel-project>.vercel.app/debug-auth
+```
+
+Send the same header:
+
+```text
+Authorization: Bearer <real-app-generated-token>
+```
+
+The response does not expose the token or service role key. It reports which
+stage failed: missing header, missing Supabase environment variables, Supabase
+HTTP/network error, token hash not found, expired token row, or authenticated
+user ID.
+
 ## Environment Variables
 
 These Phase 3A variables have been added in Vercel:

@@ -4,11 +4,14 @@ from __future__ import annotations
 
 from starlette.applications import Starlette
 from starlette.middleware.cors import CORSMiddleware
+import httpx
 from starlette.responses import JSONResponse, Response
 from starlette.routing import Mount, Route
 
 from .http_auth import AuthorizationHeaderMiddleware
+from .auth import AuthenticationError, extract_bearer_token, fingerprint_token
 from .register import build_registration_response
+from .supabase_client import SupabaseConfigError, SupabaseFitTrackClient, TokenLookupError
 from .tools import get_authenticated_user_full_name, get_recent_workouts, get_today_nutrition
 
 
@@ -18,6 +21,7 @@ DEFAULT_PORT = 8000
 DEPLOYED_HOST = "0.0.0.0"
 MCP_PATH = "/mcp"
 REGISTER_PATH = "/register"
+DEBUG_AUTH_PATH = "/debug-auth"
 
 
 def build_server(*, deployed: bool = False):
@@ -137,6 +141,10 @@ class RequestScopedMCPApp:
             await register_request(scope, receive, send)
             return
 
+        if scope.get("path") == DEBUG_AUTH_PATH:
+            await debug_auth_request(scope, receive, send)
+            return
+
         mcp = build_server(deployed=self.deployed)
         mcp_app = mcp.streamable_http_app()
         protected_app = AuthorizationHeaderMiddleware(mcp_app)
@@ -180,6 +188,110 @@ async def register_request(scope, receive, send):
         response = JSONResponse(build_registration_response(), status_code=200)
 
     await response(scope, receive, send)
+
+
+async def debug_auth_request(scope, receive, send):
+    """Return safe diagnostics for the current Authorization header."""
+
+    try:
+        authorization = _get_header(scope, "authorization")
+        token = extract_bearer_token(authorization)
+    except AuthenticationError:
+        response = JSONResponse(
+            {
+                "ok": False,
+                "stage": "authorization_header",
+                "message": "Missing or invalid Authorization: Bearer header.",
+            },
+            status_code=200,
+        )
+        await response(scope, receive, send)
+        return
+
+    try:
+        client = SupabaseFitTrackClient()
+    except SupabaseConfigError:
+        response = JSONResponse(
+            {
+                "ok": False,
+                "stage": "environment",
+                "message": "SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is missing.",
+            },
+            status_code=200,
+        )
+        await response(scope, receive, send)
+        return
+
+    try:
+        user = await client.resolve_token(token)
+    except TokenLookupError:
+        rows = await _safe_debug_rows(client, token)
+        if rows:
+            message = "Token hash exists, but no unexpired token row matched."
+            expires_at = rows[0].get("expires_at")
+        else:
+            message = "Token hash was not found in fittrack_api_tokens."
+            expires_at = None
+
+        response = JSONResponse(
+            {
+                "ok": False,
+                "stage": "token_lookup",
+                "message": message,
+                "expires_at": expires_at,
+            },
+            status_code=200,
+        )
+        await response(scope, receive, send)
+        return
+    except httpx.HTTPStatusError as exc:
+        response = JSONResponse(
+            {
+                "ok": False,
+                "stage": "supabase_http",
+                "status_code": exc.response.status_code,
+                "message": "Supabase rejected the request.",
+            },
+            status_code=200,
+        )
+        await response(scope, receive, send)
+        return
+    except httpx.RequestError:
+        response = JSONResponse(
+            {
+                "ok": False,
+                "stage": "supabase_network",
+                "message": "Could not reach Supabase.",
+            },
+            status_code=200,
+        )
+        await response(scope, receive, send)
+        return
+
+    response = JSONResponse(
+        {
+            "ok": True,
+            "stage": "authenticated",
+            "user_id": user.user_id,
+        },
+        status_code=200,
+    )
+    await response(scope, receive, send)
+
+
+async def _safe_debug_rows(client: SupabaseFitTrackClient, token: str):
+    try:
+        return await client.debug_token_hash_lookup(fingerprint_token(token))
+    except Exception:
+        return []
+
+
+def _get_header(scope, name: str) -> str | None:
+    wanted = name.lower().encode("latin-1")
+    for key, value in scope.get("headers", []):
+        if key.lower() == wanted:
+            return value.decode("latin-1")
+    return None
 
 
 def main() -> None:
