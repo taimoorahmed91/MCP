@@ -1,5 +1,6 @@
 import anyio
 import httpx
+from starlette.responses import JSONResponse
 from starlette.testclient import TestClient
 
 from fittrack_mcp.auth import AuthenticatedUser
@@ -67,6 +68,22 @@ def test_asgi_app_rejects_missing_authorization_header():
         assert response.json() == {"error": "authentication failed"}
 
     anyio.run(request_without_header)
+
+
+def test_authorization_middleware_skips_register_path():
+    async def inner_app(scope, receive, send):
+        response = JSONResponse({"ok": True, "path": scope["path"]})
+        await response(scope, receive, send)
+
+    async def request_register_without_header():
+        transport = httpx.ASGITransport(app=AuthorizationHeaderMiddleware(inner_app))
+        async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+            response = await client.post("/register")
+
+        assert response.status_code == 200
+        assert response.json() == {"ok": True, "path": "/register"}
+
+    anyio.run(request_register_without_header)
 
 
 def test_asgi_app_rejects_wrong_authorization_header():

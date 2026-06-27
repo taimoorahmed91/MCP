@@ -14,6 +14,7 @@ from .supabase_client import SupabaseFitTrackClient
 
 
 ASGIApp = Callable[[Scope, Receive, Send], Awaitable[None]]
+AUTH_BYPASS_PATHS = {"/register"}
 
 
 class AuthorizationHeaderMiddleware:
@@ -25,6 +26,10 @@ class AuthorizationHeaderMiddleware:
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        if scope.get("path") in AUTH_BYPASS_PATHS:
             await self.app(scope, receive, send)
             return
 
