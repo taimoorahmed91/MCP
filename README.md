@@ -25,14 +25,14 @@ and this server read from the same Supabase database.
 Phases 0 through 2 are complete, and Phase 3 Sub-step A is implemented.
 
 The server runs over Streamable HTTP, validates a Bearer token from the
-`Authorization` header, and has been successfully called from Claude through
-the public MCP connector.
+`Authorization` header, and has been successfully called from Claude Desktop
+through `mcp-remote`.
 
 The current Phase 3A code resolves real app-generated tokens through Supabase
 and adds a `get_user` tool that returns the authenticated user's `full_name`
-from the `profiles` table. The workout and nutrition tools still return
-placeholder data. Phase 3B has started with a real `get_meals` tool backed by
-the `fittrack_meals` table.
+from the `profiles` table. Phase 3B has started with a real `get_meals` tool
+backed by the `fittrack_meals` table. The workout and nutrition tools still
+return placeholder data.
 
 ## Planned Phases
 
@@ -42,7 +42,7 @@ the `fittrack_meals` table.
 | 1 | Public HTTPS deployment with fake responses | Complete |
 | 2 | Online testing with Claude using the public MCP connector | Complete |
 | 3A | Supabase-backed token lookup and `get_user` profile lookup | Implemented |
-| 3B | Replace placeholder workout/nutrition responses with real FitTrack data | Started with `get_meals` |
+| 3B | Replace placeholder workout/nutrition responses with real FitTrack data | Started with real `get_meals` |
 | 4 | Safety review for expiry, revocation, isolation, and rate limits | Not started |
 | 5 | Everyday Claude usage | Not started |
 
@@ -193,6 +193,123 @@ Do not rely on `/mcp` OAuth authentication for this server. `/register` is
 allowed for connector compatibility, but it is not a full OAuth dynamic client
 registration flow.
 
+## Claude Desktop Setup
+
+Claude Desktop connects to remote MCP servers through a local stdio bridge. For
+this project, the bridge is `mcp-remote`.
+
+The working Claude Desktop configuration is:
+
+```json
+{
+  "mcpServers": {
+    "fittrack": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-remote@latest",
+        "https://mcp-khaki-two.vercel.app/mcp",
+        "--transport",
+        "http-only",
+        "--header",
+        "Authorization:${FITTRACK_AUTH_HEADER}",
+        "--debug"
+      ],
+      "env": {
+        "FITTRACK_AUTH_HEADER": "Bearer <real-app-generated-token>"
+      }
+    }
+  }
+}
+```
+
+Replace `<real-app-generated-token>` with the same FitTrack token that works in
+MCP Inspector or `/debug-auth`.
+
+Important details:
+
+- use `mcp-remote@latest` so Claude Desktop always runs the current bridge;
+- use `--transport http-only` so `mcp-remote` stays on Streamable HTTP;
+- pass the token as an environment variable so the required space in
+  `Bearer <token>` is preserved;
+- keep the header argument as `Authorization:${FITTRACK_AUTH_HEADER}`;
+- keep `--debug` enabled while diagnosing Claude Desktop connection issues.
+
+After editing Claude Desktop's config file, fully quit and reopen Claude
+Desktop. A normal window close is not always enough for Claude to reload MCP
+configuration.
+
+On macOS, Claude Desktop logs can be watched with:
+
+```bash
+tail -n 80 -F ~/Library/Logs/Claude/mcp*.log
+```
+
+`mcp-remote` debug logs are written under:
+
+```text
+~/.mcp-auth/
+```
+
+To find the newest debug log:
+
+```bash
+ls -lt ~/.mcp-auth/*debug.log | head
+```
+
+To read the newest debug log:
+
+```bash
+tail -n 120 ~/.mcp-auth/*debug.log
+```
+
+If Claude Desktop keeps using stale auth state, clear the local bridge cache and
+restart Claude Desktop:
+
+```bash
+rm -rf ~/.mcp-auth
+```
+
+Do this only when you are ready to reconnect the MCP server and re-create the
+local `mcp-remote` state.
+
+## Vercel Hosting Notes
+
+The current deployment is hosted on Vercel at:
+
+```text
+https://mcp-khaki-two.vercel.app/mcp
+```
+
+Vercel can run this project well enough for the current Claude Desktop setup,
+but there is an important platform caveat.
+
+Streamable HTTP includes a long-lived `GET /mcp` request for server-sent events.
+Claude Desktop, through `mcp-remote`, may keep that request open in the
+background. Vercel's Python serverless runtime eventually kills long-running
+requests. In Vercel logs this appears as:
+
+```text
+Vercel Runtime Timeout Error: Task timed out after 300 seconds
+requestMethod: GET
+requestPath: /mcp
+responseStatusCode: 200
+```
+
+This timeout means Vercel killed the open stream. It does not automatically mean
+the Bearer token is wrong or that Supabase failed.
+
+The current mitigation is the Claude Desktop config above:
+
+- `mcp-remote@latest`
+- `--transport http-only`
+- token passed through `FITTRACK_AUTH_HEADER`
+- `--debug` enabled
+
+If this becomes unreliable in daily use, move the same app to a host that is
+designed for long-lived HTTP connections, such as Railway, Render, Fly.io, Cloud
+Run, or a small VPS.
+
 ## MCP Inspector
 
 Use these MCP Inspector settings:
@@ -205,6 +322,10 @@ Use these MCP Inspector settings:
 
 The Vercel ASGI app includes CORS support so browser-based direct connections
 can send the `Authorization` header.
+
+Inspector is useful for proving that the server, Bearer token, Supabase lookup,
+and tool schemas work. Claude Desktop is the more important end-to-end test
+because it adds the `mcp-remote` bridge and a persistent background connection.
 
 ## Auth Debugging
 
@@ -225,6 +346,20 @@ The response does not expose the token or service role key. It reports which
 stage failed: missing header, missing Supabase environment variables, Supabase
 HTTP/network error, token hash not found, expired token row, or authenticated
 user ID.
+
+A successful debug response looks like:
+
+```json
+{
+  "ok": true,
+  "stage": "authenticated",
+  "user_id": "cf439197-c0cf-487d-936f-fe289a68bb41"
+}
+```
+
+If `/debug-auth` succeeds but Claude Desktop fails, look at the Claude Desktop
+and `mcp-remote` logs before changing server code. That usually means the issue
+is in the client bridge, cached auth state, or hosting connection behavior.
 
 ## Environment Variables
 
@@ -294,6 +429,18 @@ It returns meal rows with:
 - `time`
 - `food`
 - `calories`
+
+Claude Desktop has successfully called `get_meals` through the deployed Vercel
+MCP server and returned real meals for June 27:
+
+| Time | Food | Calories |
+| --- | --- | --- |
+| 09:20 | 200g banana, 150ml milk, 2 tsp sugar | 240 |
+| 12:06 | 2 scoops whey | 292 |
+| 12:45 | 3 boiled eggs, 4 toast, 2 tsp mayo | 570 |
+| 19:40 | 300g chicken breast, 120g roti, 50g yogurt | 695 |
+
+Total returned calories: `1,797`.
 
 Remaining Phase 3B work: replace the placeholder workout and nutrition tools
 with real Supabase-backed queries.
