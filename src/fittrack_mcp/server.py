@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+from starlette.applications import Starlette
+from starlette.responses import JSONResponse, Response
+from starlette.routing import Mount, Route
+
 from .http_auth import AuthorizationHeaderMiddleware
 from .tools import get_authenticated_user_full_name, get_recent_workouts, get_today_nutrition
 
@@ -11,6 +15,7 @@ DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8000
 DEPLOYED_HOST = "0.0.0.0"
 MCP_PATH = "/mcp"
+REGISTER_PATH = "/register"
 
 
 def build_server(*, deployed: bool = False):
@@ -66,13 +71,52 @@ def build_server(*, deployed: bool = False):
 def build_asgi_app():
     """Build the ASGI app used by HTTPS hosting providers."""
 
-    return AuthorizationHeaderMiddleware(build_server(deployed=True).streamable_http_app())
+    return build_http_app(deployed=True)
 
 
 def build_local_asgi_app():
     """Build the local ASGI app with the same header authentication."""
 
-    return AuthorizationHeaderMiddleware(build_server().streamable_http_app())
+    return build_http_app(deployed=False)
+
+
+def build_http_app(*, deployed: bool):
+    """Build the public HTTP app with registration outside Bearer auth."""
+
+    mcp_app = build_server(deployed=deployed).streamable_http_app()
+    protected_mcp_app = AuthorizationHeaderMiddleware(mcp_app)
+
+    return Starlette(
+        routes=[
+            Route(
+                REGISTER_PATH,
+                endpoint=register,
+                methods=["POST", "OPTIONS"],
+            ),
+            Mount("/", app=protected_mcp_app),
+        ]
+    )
+
+
+def add_register_route(app):
+    """Add the MCP connector registration handshake endpoint."""
+
+    app.routes.append(
+        Route(
+            REGISTER_PATH,
+            endpoint=register,
+            methods=["POST", "OPTIONS"],
+        )
+    )
+
+
+async def register(request):
+    """Allow connector registration without a user Bearer token."""
+
+    if request.method == "OPTIONS":
+        return Response(status_code=200)
+
+    return JSONResponse({"ok": True}, status_code=200)
 
 
 def main() -> None:

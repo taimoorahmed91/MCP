@@ -89,6 +89,15 @@ The local MCP endpoint is:
 http://127.0.0.1:8000/mcp
 ```
 
+The connector registration handshake endpoint is:
+
+```text
+http://127.0.0.1:8000/register
+```
+
+`POST /register` is intentionally allowed without a Bearer token. Tool calls
+and other MCP requests still require `Authorization: Bearer <token>`.
+
 For clients that specifically need stdio instead of HTTP, use:
 
 ```bash

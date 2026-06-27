@@ -10,6 +10,7 @@ from fittrack_mcp.server import (
     DEFAULT_PORT,
     DEPLOYED_HOST,
     MCP_PATH,
+    REGISTER_PATH,
     build_asgi_app,
     build_local_asgi_app,
     build_server,
@@ -41,7 +42,8 @@ def test_asgi_app_builds_for_deployment():
 def test_local_asgi_app_uses_authorization_middleware():
     app = build_local_asgi_app()
 
-    assert isinstance(app, AuthorizationHeaderMiddleware)
+    assert [route.path for route in app.routes] == [REGISTER_PATH, ""]
+    assert isinstance(app.routes[1].app, AuthorizationHeaderMiddleware)
 
 
 def test_tools_do_not_expose_token_parameter():
@@ -78,10 +80,22 @@ def test_authorization_middleware_skips_register_path():
     async def request_register_without_header():
         transport = httpx.ASGITransport(app=AuthorizationHeaderMiddleware(inner_app))
         async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
-            response = await client.post("/register")
+            response = await client.post(REGISTER_PATH)
 
         assert response.status_code == 200
-        assert response.json() == {"ok": True, "path": "/register"}
+        assert response.json() == {"ok": True, "path": REGISTER_PATH}
+
+    anyio.run(request_register_without_header)
+
+
+def test_asgi_app_register_returns_200_without_authorization_header():
+    async def request_register_without_header():
+        transport = httpx.ASGITransport(app=build_asgi_app())
+        async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+            response = await client.post(REGISTER_PATH)
+
+        assert response.status_code == 200
+        assert response.json() == {"ok": True}
 
     anyio.run(request_register_without_header)
 
