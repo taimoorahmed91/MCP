@@ -52,6 +52,36 @@ async def get_authenticated_user_meals(
     )
 
 
+async def get_authenticated_user_sleep_routine(
+    *,
+    date: str | None = None,
+    hours_min: float | None = None,
+    hours_max: float | None = None,
+    fittrack_client: SupabaseFitTrackClient | None = None,
+) -> list[dict[str, Any]]:
+    """Return sleep routine entries for the authenticated FitTrack user."""
+
+    user = current_user.get()
+    if user is None:
+        raise RuntimeError("authentication failed")
+
+    sleep_date = date or datetime.now(timezone.utc).date().isoformat()
+    if hours_min is not None and hours_min <= 0:
+        raise ValueError("hours_min must be a non-zero positive number")
+    if hours_max is not None and hours_max <= 0:
+        raise ValueError("hours_max must be a non-zero positive number")
+    if hours_min is not None and hours_max is not None and hours_min > hours_max:
+        raise ValueError("hours_min must be less than or equal to hours_max")
+
+    client = fittrack_client or SupabaseFitTrackClient()
+    return await client.get_sleep_routine(
+        user.user_id,
+        sleep_date=sleep_date,
+        hours_min=hours_min,
+        hours_max=hours_max,
+    )
+
+
 def get_recent_workouts(*, user_id: str = "phase0-demo-user", limit: int = 5) -> dict[str, Any]:
     """Return fixed workout data to prove the request path works."""
 

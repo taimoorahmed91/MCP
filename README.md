@@ -31,7 +31,8 @@ through `mcp-remote`.
 The current Phase 3A code resolves real app-generated tokens through Supabase
 and adds a `get_user` tool that returns the authenticated user's `full_name`
 from the `profiles` table. Phase 3B has started with a real `get_meals` tool
-backed by the `fittrack_meals` table. The workout and nutrition tools still
+backed by the `fittrack_meals` table and a real `sleep_routine` tool backed by
+the `fittrack_sleep_routine` table. The workout and nutrition tools still
 return placeholder data.
 
 ## Planned Phases
@@ -42,7 +43,7 @@ return placeholder data.
 | 1 | Public HTTPS deployment with fake responses | Complete |
 | 2 | Online testing with Claude using the public MCP connector | Complete |
 | 3A | Supabase-backed token lookup and `get_user` profile lookup | Implemented |
-| 3B | Replace placeholder workout/nutrition responses with real FitTrack data | Started with real `get_meals` |
+| 3B | Replace placeholder workout/nutrition responses with real FitTrack data | Started with real `get_meals` and `sleep_routine` |
 | 4 | Safety review for expiry, revocation, isolation, and rate limits | Not started |
 | 5 | Everyday Claude usage | Not started |
 
@@ -113,6 +114,7 @@ The MCP tools are:
 
 - `get_user`
 - `get_meals`
+- `sleep_routine`
 - `recent_workouts`
 - `today_nutrition`
 
@@ -411,7 +413,7 @@ Returns the full name of the authenticated FitTrack user. No inputs required.
 
 ## Phase 3B Next Step
 
-Phase 3B has started with `get_meals`.
+Phase 3B has started with `get_meals` and `sleep_routine`.
 
 The `get_meals` tool reads from `fittrack_meals`, scoped to the `user_id`
 resolved from the Bearer token. It accepts optional inputs:
@@ -441,6 +443,30 @@ MCP server and returned real meals for June 27:
 | 19:40 | 300g chicken breast, 120g roti, 50g yogurt | 695 |
 
 Total returned calories: `1,797`.
+
+## Sleep Routine Tool
+
+The `sleep_routine` tool reads from `fittrack_sleep_routine`, scoped to the
+`user_id` resolved from the Bearer token. It accepts optional inputs:
+
+- `date`: `YYYY-MM-DD`; defaults to today's date when omitted.
+- `hours_min`: positive number lower bound, allowing decimals such as `7.5`.
+- `hours_max`: positive number upper bound, allowing decimals such as `8.5`.
+
+When no sleep-hours range is provided, it defaults to `hours > 0`.
+
+It returns sleep routine rows with:
+
+- `id`
+- `date`
+- `hours`
+- `notes`
+
+The tool is described to clients as:
+
+```text
+Returns sleep routine entries for the authenticated FitTrack user. Optional inputs: date as YYYY-MM-DD, hours_min, and hours_max. If date is omitted, today's date is used. If no sleep-hours range is provided, only entries with hours greater than zero are returned.
+```
 
 Remaining Phase 3B work: replace the placeholder workout and nutrition tools
 with real Supabase-backed queries.

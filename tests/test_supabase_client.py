@@ -126,3 +126,41 @@ def test_get_meals_filters_calorie_range_when_provided(monkeypatch):
         assert await client.get_meals("user-123", meal_date="2026-01-03", calories_min=500, calories_max=700) == []
 
     anyio.run(lookup)
+
+
+def test_get_sleep_routine_defaults_to_nonzero_hours(monkeypatch):
+    async def handler(request):
+        assert request.url.path == "/rest/v1/fittrack_sleep_routine"
+        assert request.url.params["select"] == "id,date,hours,notes"
+        assert request.url.params["user_id"] == "eq.user-123"
+        assert request.url.params["date"] == "eq.2026-02-23"
+        assert request.url.params.get_list("hours") == ["gt.0"]
+        assert request.url.params["order"] == "date.desc"
+        return httpx.Response(200, json=[{"date": "2026-02-23", "hours": 8, "notes": None}])
+
+    transport = httpx.MockTransport(handler)
+    original_async_client = httpx.AsyncClient
+    monkeypatch.setattr(httpx, "AsyncClient", lambda **kwargs: original_async_client(transport=transport, **kwargs))
+
+    async def lookup():
+        client = SupabaseFitTrackClient(SupabaseSettings(url="https://example.supabase.co", service_role_key="service-key"))
+        rows = await client.get_sleep_routine("user-123", sleep_date="2026-02-23")
+        assert rows == [{"date": "2026-02-23", "hours": 8, "notes": None}]
+
+    anyio.run(lookup)
+
+
+def test_get_sleep_routine_filters_hour_range_when_provided(monkeypatch):
+    async def handler(request):
+        assert request.url.params.get_list("hours") == ["gte.7.5", "lte.8.5"]
+        return httpx.Response(200, json=[])
+
+    transport = httpx.MockTransport(handler)
+    original_async_client = httpx.AsyncClient
+    monkeypatch.setattr(httpx, "AsyncClient", lambda **kwargs: original_async_client(transport=transport, **kwargs))
+
+    async def lookup():
+        client = SupabaseFitTrackClient(SupabaseSettings(url="https://example.supabase.co", service_role_key="service-key"))
+        assert await client.get_sleep_routine("user-123", sleep_date="2026-02-23", hours_min=7.5, hours_max=8.5) == []
+
+    anyio.run(lookup)

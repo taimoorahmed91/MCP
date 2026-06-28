@@ -15,6 +15,7 @@ from .supabase_client import SupabaseConfigError, SupabaseFitTrackClient, TokenL
 from .tools import (
     get_authenticated_user_full_name,
     get_authenticated_user_meals,
+    get_authenticated_user_sleep_routine,
     get_recent_workouts,
     get_today_nutrition,
 )
@@ -71,6 +72,20 @@ def build_server(*, deployed: bool = False):
             date=date,
             calories_min=calories_min,
             calories_max=calories_max,
+        )
+
+    @mcp.tool()
+    async def sleep_routine(
+        date: str | None = None,
+        hours_min: float | None = None,
+        hours_max: float | None = None,
+    ) -> list[dict]:
+        """Returns sleep routine entries for the authenticated FitTrack user. Optional inputs: date as YYYY-MM-DD, hours_min, and hours_max. If date is omitted, today's date is used. If no sleep-hours range is provided, only entries with hours greater than zero are returned."""
+
+        return await get_authenticated_user_sleep_routine(
+            date=date,
+            hours_min=hours_min,
+            hours_max=hours_max,
         )
 
     @mcp.tool()

@@ -134,3 +134,34 @@ class SupabaseFitTrackClient:
             response.raise_for_status()
 
         return response.json()
+
+    async def get_sleep_routine(
+        self,
+        user_id: str,
+        *,
+        sleep_date: str,
+        hours_min: float | None = None,
+        hours_max: float | None = None,
+    ) -> list[dict[str, Any]]:
+        params = [
+            ("select", "id,date,hours,notes"),
+            ("user_id", f"eq.{user_id}"),
+            ("date", f"eq.{sleep_date}"),
+            ("order", "date.desc"),
+        ]
+
+        if hours_min is None and hours_max is None:
+            params.append(("hours", "gt.0"))
+        if hours_min is not None:
+            params.append(("hours", f"gte.{hours_min:g}"))
+        if hours_max is not None:
+            params.append(("hours", f"lte.{hours_max:g}"))
+
+        async with httpx.AsyncClient(base_url=self.settings.url, headers=self.headers) as client:
+            response = await client.get(
+                "/rest/v1/fittrack_sleep_routine",
+                params=params,
+            )
+            response.raise_for_status()
+
+        return response.json()

@@ -81,6 +81,10 @@ def test_tools_do_not_expose_token_parameter():
         assert "calories_min" in input_schemas["get_meals"]["properties"]
         assert "calories_max" in input_schemas["get_meals"]["properties"]
         assert "calories" not in input_schemas["get_meals"]["properties"]
+        assert "date" in input_schemas["sleep_routine"]["properties"]
+        assert "hours_min" in input_schemas["sleep_routine"]["properties"]
+        assert "hours_max" in input_schemas["sleep_routine"]["properties"]
+        assert "token" not in input_schemas["sleep_routine"]["properties"]
         assert "token" not in input_schemas["recent_workouts"]["properties"]
         assert "token" not in input_schemas["today_nutrition"]["properties"]
 
