@@ -32,8 +32,8 @@ The current Phase 3A code resolves real app-generated tokens through Supabase
 and adds a `get_user` tool that returns the authenticated user's `full_name`
 from the `profiles` table. Phase 3B has started with a real `get_meals` tool
 backed by the `fittrack_meals` table and a real `sleep_routine` tool backed by
-the `fittrack_sleep_routine` table. The workout and nutrition tools still
-return placeholder data.
+the `fittrack_sleep` table. The old placeholder workout and nutrition
+tools have been removed from the published MCP server.
 
 ## Planned Phases
 
@@ -115,8 +115,6 @@ The MCP tools are:
 - `get_user`
 - `get_meals`
 - `sleep_routine`
-- `recent_workouts`
-- `today_nutrition`
 
 The token is not a tool argument. MCP tool-call requests must include this HTTP
 header:
@@ -375,23 +373,20 @@ These Phase 3A variables have been added in Vercel:
 The service role key must only be stored in the deployment environment. Do not
 commit it to Git.
 
-## Phase 2 Claude Test
+## Claude Desktop Test
 
-Claude has successfully connected to the public MCP server and used the
-`recent_workouts` tool from a plain-language request:
+Claude Desktop has successfully connected to the public MCP server and used the
+real Supabase-backed tools from plain-language requests:
 
 ```text
-get my recent workout
+who am I?
+what did I eat today?
 ```
 
-The response returned the expected Phase 0 placeholder workouts:
-
-- 2026-06-24 strength workout;
-- 2026-06-22 easy run;
-- 2026-06-20 mobility session.
-
-This confirms the connector can load the server, discover the tools, choose a
-tool, send the Bearer token, and receive a tool response.
+The response returned the authenticated user's real profile name and real meal
+rows from Supabase. This confirms the connector can load the server, discover
+the tools, choose a tool, send the Bearer token, resolve the token to a user,
+and receive a scoped Supabase-backed response.
 
 ## Phase 3A
 
@@ -446,7 +441,7 @@ Total returned calories: `1,797`.
 
 ## Sleep Routine Tool
 
-The `sleep_routine` tool reads from `fittrack_sleep_routine`, scoped to the
+The `sleep_routine` tool reads from `fittrack_sleep`, scoped to the
 `user_id` resolved from the Bearer token. It accepts optional inputs:
 
 - `date`: `YYYY-MM-DD`; defaults to today's date when omitted.
@@ -468,8 +463,7 @@ The tool is described to clients as:
 Returns sleep routine entries for the authenticated FitTrack user. Optional inputs: date as YYYY-MM-DD, hours_min, and hours_max. If date is omitted, today's date is used. If no sleep-hours range is provided, only entries with hours greater than zero are returned.
 ```
 
-Remaining Phase 3B work: replace the placeholder workout and nutrition tools
-with real Supabase-backed queries.
+Remaining Phase 3B work: add more real Supabase-backed tools as needed.
 
 ## Security Principles
 

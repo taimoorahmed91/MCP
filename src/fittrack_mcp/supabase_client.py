@@ -159,7 +159,7 @@ class SupabaseFitTrackClient:
 
         async with httpx.AsyncClient(base_url=self.settings.url, headers=self.headers) as client:
             response = await client.get(
-                "/rest/v1/fittrack_sleep_routine",
+                "/rest/v1/fittrack_sleep",
                 params=params,
             )
             response.raise_for_status()

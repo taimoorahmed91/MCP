@@ -130,7 +130,7 @@ def test_get_meals_filters_calorie_range_when_provided(monkeypatch):
 
 def test_get_sleep_routine_defaults_to_nonzero_hours(monkeypatch):
     async def handler(request):
-        assert request.url.path == "/rest/v1/fittrack_sleep_routine"
+        assert request.url.path == "/rest/v1/fittrack_sleep"
         assert request.url.params["select"] == "id,date,hours,notes"
         assert request.url.params["user_id"] == "eq.user-123"
         assert request.url.params["date"] == "eq.2026-02-23"

@@ -6,8 +6,6 @@ from fittrack_mcp.tools import (
     get_authenticated_user_full_name,
     get_authenticated_user_meals,
     get_authenticated_user_sleep_routine,
-    get_recent_workouts,
-    get_today_nutrition,
 )
 
 
@@ -29,23 +27,6 @@ class FakeFitTrackClient:
         assert hours_min == 7.5
         assert hours_max == 8.5
         return [{"date": sleep_date, "hours": 8, "notes": None}]
-
-
-def test_recent_workouts_returns_fake_data():
-    response = get_recent_workouts(limit=2)
-
-    assert response["ok"] is True
-    assert response["user_id"] == "phase0-demo-user"
-    assert response["source"] == "phase0_fake_data"
-    assert len(response["workouts"]) == 2
-
-
-def test_today_nutrition_returns_fake_data():
-    response = get_today_nutrition()
-
-    assert response["ok"] is True
-    assert response["user_id"] == "phase0-demo-user"
-    assert response["calories"] == 2180
 
 
 def test_get_authenticated_user_full_name_uses_current_user():

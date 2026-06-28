@@ -16,8 +16,6 @@ from .tools import (
     get_authenticated_user_full_name,
     get_authenticated_user_meals,
     get_authenticated_user_sleep_routine,
-    get_recent_workouts,
-    get_today_nutrition,
 )
 
 
@@ -87,24 +85,6 @@ def build_server(*, deployed: bool = False):
             hours_min=hours_min,
             hours_max=hours_max,
         )
-
-    @mcp.tool()
-    def recent_workouts(limit: int = 5) -> dict:
-        """Get recent FitTrack workouts for the token's user.
-
-        Phase 0 returns fake data.
-        """
-
-        return get_recent_workouts(limit=limit)
-
-    @mcp.tool()
-    def today_nutrition() -> dict:
-        """Get today's FitTrack nutrition summary for the token's user.
-
-        Phase 0 returns fake data.
-        """
-
-        return get_today_nutrition()
 
     return mcp
 
