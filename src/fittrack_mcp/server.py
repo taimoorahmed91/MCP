@@ -73,12 +73,12 @@ def build_server(*, deployed: bool = False):
         )
 
     @mcp.tool()
-    async def sleep_routine(
+    async def get_sleep(
         date: str | None = None,
         hours_min: float | None = None,
         hours_max: float | None = None,
     ) -> list[dict]:
-        """Returns sleep routine entries for the authenticated FitTrack user. Optional inputs: date as YYYY-MM-DD, hours_min, and hours_max. If date is omitted, today's date is used. If no sleep-hours range is provided, only entries with hours greater than zero are returned."""
+        """Returns sleep entries for the authenticated FitTrack user. Optional inputs: date as YYYY-MM-DD, hours_min, and hours_max. If date is omitted, today's date is used. If no sleep-hours range is provided, only entries with hours greater than zero are returned."""
 
         return await get_authenticated_user_sleep_routine(
             date=date,

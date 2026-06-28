@@ -75,17 +75,17 @@ def test_tools_do_not_expose_token_parameter():
         input_schemas = {tool.name: tool.inputSchema for tool in tools}
         descriptions = {tool.name: tool.description for tool in tools}
 
-        assert set(input_schemas) == {"get_user", "get_meals", "sleep_routine"}
+        assert set(input_schemas) == {"get_user", "get_meals", "get_sleep"}
         assert input_schemas["get_user"]["properties"] == {}
         assert descriptions["get_user"] == "Returns the full name of the authenticated FitTrack user. No inputs required."
         assert "date" in input_schemas["get_meals"]["properties"]
         assert "calories_min" in input_schemas["get_meals"]["properties"]
         assert "calories_max" in input_schemas["get_meals"]["properties"]
         assert "calories" not in input_schemas["get_meals"]["properties"]
-        assert "date" in input_schemas["sleep_routine"]["properties"]
-        assert "hours_min" in input_schemas["sleep_routine"]["properties"]
-        assert "hours_max" in input_schemas["sleep_routine"]["properties"]
-        assert "token" not in input_schemas["sleep_routine"]["properties"]
+        assert "date" in input_schemas["get_sleep"]["properties"]
+        assert "hours_min" in input_schemas["get_sleep"]["properties"]
+        assert "hours_max" in input_schemas["get_sleep"]["properties"]
+        assert "token" not in input_schemas["get_sleep"]["properties"]
 
     anyio.run(check_tools)
 
